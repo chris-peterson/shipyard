@@ -62,9 +62,10 @@ def main(argv: list[str] | None = None) -> int:
         build_docs.run(root)
         return 0
     if args.command == "check":
-        from . import gen_describe, gen_plugin_json, gen_suite_json
+        # only the committed generated artifacts — plugin.json and plugin.yml's
+        # describe. suite.json is a gitignored render target, not committed.
+        from . import gen_describe, gen_plugin_json
         gen_plugin_json.run(root, check=True)
-        gen_suite_json.run(root, check=True)
         gen_describe.run(root, check=True)
         return 0
     return 1
