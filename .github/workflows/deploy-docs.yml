@@ -36,15 +36,15 @@ jobs:
           repository: chris-peterson/shipyard
           ref: main
           path: .shipyard
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
       - run: pip install pyyaml
       - name: Render docs from source
         run: python3 -m shipyard build-docs
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
