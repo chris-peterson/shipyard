@@ -1,0 +1,50 @@
+name: Deploy docs (shipyard)
+
+# Reusable docs deploy. A plugin calls it from its own deploy-docs.yml on push to
+# main. shipyard renders docs/ from the plugin's sources (skills/rules/… +
+# suite.json), then publishes docs/ to GitHub Pages.
+#
+# GitHub Pages needs pages: write + id-token: write. Reusable-workflow permissions
+# are capped by the caller's token, so the caller must grant those at its top
+# level (its deploy-docs.yml does).
+
+on:
+  workflow_call:
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .shipyard/src
+    steps:
+      - name: Check out the plugin
+        uses: actions/checkout@v6
+      - name: Check out shipyard tooling
+        uses: actions/checkout@v6
+        with:
+          repository: chris-peterson/shipyard
+          ref: actions
+          path: .shipyard
+      - uses: actions/configure-pages@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - run: pip install pyyaml
+      - name: Render docs from source
+        run: python3 -m shipyard build-docs
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
