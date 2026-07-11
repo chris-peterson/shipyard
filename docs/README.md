@@ -48,3 +48,7 @@ Two thin touch-points in each plugin repo — no packaged install:
 Both are pinned to the same ref: **`@main`** while shipyard is pre-1.0 (float to latest), moving to semver tags at v1.
 
 Read on: **[How it works](how-it-works.md)** for the projection and CI flows, or the **[before/after walk-through](example.md)** of converting a real plugin.
+
+---
+
+Source: [github.com/chris-peterson/shipyard](https://github.com/chris-peterson/shipyard).
