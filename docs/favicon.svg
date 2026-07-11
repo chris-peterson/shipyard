@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="shipyard">
+  <rect width="64" height="64" rx="14" fill="#282a36"/>
+  <!-- Tower crane: mast, jib, apex tie, and base -->
+  <g stroke="#8be9fd" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <line x1="24" y1="52" x2="24" y2="18"/>
+    <line x1="12" y1="18" x2="50" y2="18"/>
+    <path d="M 12 18 L 24 10 L 50 18"/>
+    <line x1="18" y1="52" x2="30" y2="52"/>
+  </g>
+  <!-- Counterweight -->
+  <rect x="10.5" y="21" width="7" height="6" rx="1.6" fill="#bd93f9"/>
+  <!-- Hoist line + hook — the completion spark -->
+  <line x1="45" y1="18" x2="45" y2="28" stroke="#6272a4" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="45" cy="31" r="4" fill="#50fa7b"/>
+</svg>
