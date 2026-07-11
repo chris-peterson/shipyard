@@ -88,6 +88,17 @@ def _doc_line(path: pathlib.Path) -> str:
     return ""
 
 
+def _hooks_yml_desc(hooks_yml: pathlib.Path) -> dict[str, str]:
+    """Each hook's description, keyed by the script stem / engine it delegates to
+    (via _target_label), read from hooks.yml — the source of record."""
+    entries = (yaml.safe_load(hooks_yml.read_text()) or {}).get("hooks") or []
+    out: dict[str, str] = {}
+    for e in entries:
+        if e.get("description"):
+            out[_target_label(e.get("command", ""))] = _first_sentence(str(e["description"]))
+    return out
+
+
 def _hooks_wiring(hooks_json: pathlib.Path) -> str:
     """The event→target wiring, per event, annotating the tool matcher(s) each
     target responds to. Surfaces engine scripts (e.g. a watchdog) alongside the
@@ -118,18 +129,30 @@ def derive(root: str | pathlib.Path | None = None) -> dict:
         if h := _rule_heading(f):
             out.setdefault("rules", {})[f.stem] = h
     hooks_json = r / "hooks" / "hooks.json"
+    hooks_yml = r / "hooks" / "hooks.yml"
     emap = _event_map(hooks_json) if hooks_json.exists() else {}
+    # hooks.yml is the source of record for the descriptions when present; the
+    # `# DOCUMENTATION:` line in the script is the pre-migration path.
+    yml_desc = _hooks_yml_desc(hooks_yml) if hooks_yml.exists() else None
     for f in sorted((r / "hooks").glob("*")):
         if f.name == "hooks.json":
             out.setdefault("hooks", {})["hooks"] = _hooks_wiring(f)
         elif f.suffix in (".sh", ".py"):
             events = emap.get(f.stem, [])
-            doc = _doc_line(f)
-            if not doc:
-                raise SystemExit(
-                    f"shipyard gen-describe: {f.relative_to(r)} has no `# DOCUMENTATION:` line "
-                    "(add one below the shebang so its description can be derived)."
-                )
+            if yml_desc is not None:
+                doc = yml_desc.get(f.stem, "")
+                if not doc:
+                    raise SystemExit(
+                        f"shipyard gen-describe: hooks/hooks.yml has no description for {f.name} "
+                        "(add a `description:` to its entry)."
+                    )
+            else:
+                doc = _doc_line(f)
+                if not doc:
+                    raise SystemExit(
+                        f"shipyard gen-describe: {f.relative_to(r)} has no `# DOCUMENTATION:` line "
+                        "(add one below the shebang, or migrate the plugin to hooks.yml)."
+                    )
             prefix = " / ".join(events) + " — " if events else ""
             out.setdefault("hooks", {})[f.stem] = prefix + doc
     for f in sorted((r / "commands").glob("*.md")):

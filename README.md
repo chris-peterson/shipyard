@@ -16,6 +16,7 @@ shipyard *projects* those into the generated, committed artifacts:
 | Command | Projection |
 |---|---|
 | `shipyard gen-plugin-json` | `plugin.yml` → `.claude-plugin/plugin.json` |
+| `shipyard gen-hooks-json` | `hooks/hooks.yml` → `hooks/hooks.json` |
 | `shipyard gen-suite-json` | `plugin.yml` `suite:` → `docs/suite.json` |
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
 | `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md` → `docs/` (+ suite.json) |
@@ -26,9 +27,11 @@ shipyard *projects* those into the generated, committed artifacts:
 Every command takes `--root <plugin-repo>` (default: the current directory), so
 shipyard runs against a checked-out plugin, not itself.
 
-`gen-describe` requires each hook script to carry a `# DOCUMENTATION:` line below
-its shebang — the one-line description shipyard derives its tooltip from. Missing
-it is a hard error, not a fallback.
+Hooks are declared in `hooks/hooks.yml` — the source of record, a flat, commentable
+list of `{event, matcher?, command, description}` — which shipyard projects into the
+`hooks/hooks.json` Claude Code reads (same split as `plugin.yml` → `plugin.json`).
+`gen-describe` reads the descriptions straight from `hooks.yml`, so no
+`# DOCUMENTATION:` line in the hook scripts is needed.
 
 ## Using it from a plugin
 

@@ -26,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
         return p
 
     add("gen-plugin-json", check=True, help="plugin.yml → .claude-plugin/plugin.json")
+    add("gen-hooks-json", check=True, help="hooks/hooks.yml → hooks/hooks.json")
     add("gen-suite-json", check=True, help="plugin.yml suite: → docs/suite.json")
     add("gen-describe", check=True, help="source → plugin.yml suite.describe")
     add("build-docs", help="render skills/rules/… into docs/ (+ suite.json)")
@@ -43,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "gen-plugin-json":
         from . import gen_plugin_json
         return gen_plugin_json.run(root, check=check)
+    if args.command == "gen-hooks-json":
+        from . import gen_hooks_json
+        return gen_hooks_json.run(root, check=check)
     if args.command == "gen-suite-json":
         from . import gen_suite_json
         return gen_suite_json.run(root, check=check)
@@ -56,16 +60,19 @@ def main(argv: list[str] | None = None) -> int:
         from . import changelog
         return changelog.run(root)
     if args.command == "build":
-        from . import gen_describe, gen_plugin_json, build_docs
+        # hooks.json first, so gen-describe reads the freshly-generated wiring
+        from . import gen_hooks_json, gen_describe, gen_plugin_json, build_docs
+        gen_hooks_json.run(root)
         gen_describe.run(root)
         gen_plugin_json.run(root)
         build_docs.run(root)
         return 0
     if args.command == "check":
-        # only the committed generated artifacts — plugin.json and plugin.yml's
-        # describe. suite.json is a gitignored render target, not committed.
-        from . import gen_describe, gen_plugin_json
+        # only the committed generated artifacts — plugin.json, hooks.json, and
+        # plugin.yml's describe. suite.json is a gitignored render target.
+        from . import gen_hooks_json, gen_describe, gen_plugin_json
         gen_plugin_json.run(root, check=True)
+        gen_hooks_json.run(root, check=True)
         gen_describe.run(root, check=True)
         return 0
     return 1

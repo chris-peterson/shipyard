@@ -74,7 +74,7 @@ If the tooltip reads wrong, you fix the `SKILL.md` — the one place that descri
 
 ## Hooks carry their own one-liner
 
-Each hook script gained a `# DOCUMENTATION:` line, and `gen-describe` combines it with the event wiring from `hooks.json`. For a plugin whose hook delegates to an engine script, the wiring surfaces it — ClaudeWatch's watchdog, for instance:
+Each hook's `description:` lives beside it in `hooks/hooks.yml`, and `gen-describe` combines it with the event wiring `gen-hooks-json` projected into `hooks.json`. For a plugin whose hook delegates to an engine script, the wiring surfaces it — ClaudeWatch's watchdog, for instance:
 
 ```
 PreToolUse→watchdog (Bash, Write|Edit); SessionStart→cli-freshness, emit-rules
@@ -82,7 +82,7 @@ PreToolUse→watchdog (Bash, Write|Edit); SessionStart→cli-freshness, emit-rul
 
 ## Converting your own plugin
 
-1. Add a `# DOCUMENTATION:` line below the shebang of each `hooks/*.sh` / `*.py`.
+1. Declare hooks in `hooks/hooks.yml` (`event`, `matcher?`, `command`, `description`); `gen-hooks-json` generates `hooks.json`.
 2. Copy `scripts/shipyard` and the three workflow callers from anchor; point them at `@main`.
 3. Delete the local build scripts; wire `justfile` and the pre-commit hook to the wrapper.
 4. Run `shipyard gen-describe`, `shipyard gen-plugin-json`, `shipyard build-docs`, and confirm `shipyard check` is green.

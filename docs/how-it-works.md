@@ -14,9 +14,9 @@ Each generator reads a plugin's canonical source and writes a committed artifact
   | skill | the first sentence of its `SKILL.md` `description:` |
   | command | the first sentence of its command `description:` |
   | rule | the rule file's first `#` heading |
-  | hook | its `# DOCUMENTATION:` line + the event/matcher it's wired to in `hooks.json` |
+  | hook | its `description:` in `hooks/hooks.yml` + the event/matcher it's wired to |
 
-  A hook script therefore must carry a `# DOCUMENTATION:` line below its shebang — missing it is a hard error, not a silent fallback.
+  Hooks are declared in `hooks/hooks.yml` — the source of record, a flat, commentable list of `{event, matcher?, command, description}` — which **`gen-hooks-json`** projects into the `hooks/hooks.json` Claude Code reads (the same source → generated split as `plugin.yml` → `plugin.json`). `gen-describe` reads each hook's `description:` straight from `hooks.yml`, so the hook scripts carry no `# DOCUMENTATION:` line.
 
 - **`build-docs`** — renders `skills/`, `rules/`, `guides/`, `templates/`, and `SPEC.md` into `docs/`, plus `suite.json`. The plugin's docsify site serves the result; nothing is hand-maintained twice.
 
