@@ -2,6 +2,7 @@
 
   skills/<name>/SKILL.md -> docs/skills/<name>.md   (YAML frontmatter stripped)
   rules|guides|templates/*.md -> docs/<dir>/*.md    (copied verbatim, if present)
+  SPEC.md -> docs/SPEC.md                           (copied verbatim, if present)
   plugin.yml suite: -> docs/suite.json              (live session preview)
 
 Only source dirs that exist are rendered, so a plugin without guides/ or rules/
@@ -47,5 +48,11 @@ def run(root: str | pathlib.Path | None = None) -> int:
             (docs / name).mkdir(parents=True, exist_ok=True)
             for f in mds:
                 shutil.copyfile(f, docs / name / f.name)
+
+    # the plugin's spec, if it keeps one, so the docs site can serve it
+    spec = r / "SPEC.md"
+    if spec.is_file():
+        docs.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(spec, docs / "SPEC.md")
 
     return gen_suite_json.run(root)

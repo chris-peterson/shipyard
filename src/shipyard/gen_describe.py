@@ -59,6 +59,11 @@ def _target_label(cmd: str) -> str:
     m = re.search(r"scripts/([\w.-]+)\"?\s+hook\b", cmd)
     if m:
         return f"{m.group(1)} CLI"
+    # a helper/engine script the hook delegates to (e.g. a watch engine):
+    # scripts/watchdog.py -> "watchdog"
+    m = re.search(r"scripts/([\w.-]+)\.(?:py|sh)", cmd)
+    if m:
+        return m.group(1)
     return "?"
 
 
@@ -84,16 +89,22 @@ def _doc_line(path: pathlib.Path) -> str:
 
 
 def _hooks_wiring(hooks_json: pathlib.Path) -> str:
+    """The event→target wiring, per event, annotating the tool matcher(s) each
+    target responds to. Surfaces engine scripts (e.g. a watchdog) alongside the
+    Claude event + matcher they fire on: `PreToolUse→watchdog (Bash, Write|Edit)`."""
     data = json.loads(hooks_json.read_text())
     parts = []
     for event, groups in (data.get("hooks") or {}).items():
-        tgts: list[str] = []
+        targets: dict[str, list[str]] = {}  # target -> matchers, order-preserving
         for group in groups:
+            matcher = group.get("matcher")
             for h in group.get("hooks", []):
                 t = _target_label(h.get("command", ""))
-                if t not in tgts:
-                    tgts.append(t)
-        parts.append(f"{event}→{', '.join(tgts)}")
+                targets.setdefault(t, [])
+                if matcher and matcher not in targets[t]:
+                    targets[t].append(matcher)
+        rendered = [f"{t} ({', '.join(ms)})" if ms else t for t, ms in targets.items()]
+        parts.append(f"{event}→{', '.join(rendered)}")
     return "Hook wiring: " + "; ".join(parts) + "."
 
 
