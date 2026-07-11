@@ -27,9 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add("gen-plugin-json", check=True, help="plugin.yml → .claude-plugin/plugin.json")
     add("gen-hooks-json", check=True, help="hooks/hooks.yml → hooks/hooks.json")
-    add("gen-suite-json", check=True, help="plugin.yml suite: → docs/suite.json")
+    add("gen-plugin-docs", check=True, help="plugin.yml suite: → docs/plugin-docs.json")
     add("gen-describe", check=True, help="source → plugin.yml suite.describe")
-    add("build-docs", help="render skills/rules/… into docs/ (+ suite.json)")
+    add("build-docs", help="render skills/rules/… into docs/ (+ plugin-docs.json)")
     add("changelog", help="prepend a release section to CHANGELOG.md (VERSION/BODY env)")
     add("build", help="run every generator (plugin-json, describe, docs)")
     add("check", help="verify all generated artifacts are in sync (CI gate)")
@@ -47,9 +47,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "gen-hooks-json":
         from . import gen_hooks_json
         return gen_hooks_json.run(root, check=check)
-    if args.command == "gen-suite-json":
-        from . import gen_suite_json
-        return gen_suite_json.run(root, check=check)
+    if args.command == "gen-plugin-docs":
+        from . import gen_plugin_docs
+        return gen_plugin_docs.run(root, check=check)
     if args.command == "gen-describe":
         from . import gen_describe
         return gen_describe.run(root, check=check)
@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "check":
         # only the committed generated artifacts — plugin.json, hooks.json, and
-        # plugin.yml's describe. suite.json is a gitignored render target.
+        # plugin.yml's describe. plugin-docs.json is a gitignored render target.
         from . import gen_hooks_json, gen_describe, gen_plugin_json
         gen_plugin_json.run(root, check=True)
         gen_hooks_json.run(root, check=True)

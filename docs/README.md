@@ -12,7 +12,7 @@ A plugin's own files are the truth. shipyard never invents copy — it **project
 %%{ init: { 'look': 'handDrawn' } }%%
 flowchart LR
   Y["plugin.yml"] --> PJ[".claude-plugin/plugin.json"]
-  Y --> SJ["docs/suite.json"]
+  Y --> SJ["docs/plugin-docs.json"]
   SRC["skills / rules / hooks"] --> D["plugin.yml suite.describe"]
   SRC --> DOCS["docs/*"]
   SPEC["SPEC.md"] --> DOCS
@@ -22,7 +22,7 @@ flowchart LR
   D --> HUB["bridge.ai catalog"]
 ```
 
-Because the descriptions come *from* the artifacts (a skill's `SKILL.md`, a hook's `# DOCUMENTATION:` line, `hooks.json` wiring), the catalog and docs can't drift from what the plugin actually does.
+Because the descriptions come *from* the artifacts (a skill's `SKILL.md`, a hook's `description:` in `hooks.yml`, its event/matcher wiring), the catalog and docs can't drift from what the plugin actually does.
 
 ## Commands
 
@@ -32,7 +32,7 @@ Every command runs against a target plugin repo (`--root <path>`, default: the c
 |---|---|
 | `shipyard gen-plugin-json` | `plugin.yml` → `.claude-plugin/plugin.json` |
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
-| `shipyard gen-suite-json` | `plugin.yml` `suite:` → `docs/suite.json` |
+| `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` |
 | `shipyard changelog` | a release body → `CHANGELOG.md` |
 | `shipyard build` | run every generator |

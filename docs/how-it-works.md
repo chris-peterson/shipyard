@@ -18,7 +18,7 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
   Hooks are declared in `hooks/hooks.yml` — the source of record, a flat, commentable list of `{event, matcher?, command, description}` — which **`gen-hooks-json`** projects into the `hooks/hooks.json` Claude Code reads (the same source → generated split as `plugin.yml` → `plugin.json`). `gen-describe` reads each hook's `description:` straight from `hooks.yml`, so the hook scripts carry no `# DOCUMENTATION:` line.
 
-- **`build-docs`** — renders `skills/`, `rules/`, `guides/`, `templates/`, and `SPEC.md` into `docs/`, plus `suite.json`. The plugin's docsify site serves the result; nothing is hand-maintained twice.
+- **`build-docs`** — renders `skills/`, `rules/`, `guides/`, `templates/`, and `SPEC.md` into `docs/`, plus `plugin-docs.json`. The plugin's docsify site serves the result; nothing is hand-maintained twice.
 
 The marker block `gen-describe` writes means editing is one-directional — you change the source, run the generator, and the committed copy follows:
 

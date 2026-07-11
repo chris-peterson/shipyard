@@ -11,7 +11,7 @@ the marketplace shows is *computed*, never hand-written:
 
 The block is written into plugin.yml between generated markers, so the rest of
 the (hand-authored) file is never reformatted. Downstream consumers — the
-plugin's own docs (via suite.json) and the bridge.ai catalog — read the synced
+plugin's own docs (via plugin-docs.json) and the bridge.ai catalog — read the synced
 plugin.yml, so neither reaches into source or carries its own copy.
 """
 from __future__ import annotations
