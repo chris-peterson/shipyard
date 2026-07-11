@@ -2,7 +2,7 @@
 
   skills/<name>/SKILL.md -> docs/skills/<name>.md   (YAML frontmatter stripped)
   rules|guides|templates/*.md -> docs/<dir>/*.md    (copied verbatim, if present)
-  SPEC.md -> docs/SPEC.md                           (copied verbatim, if present)
+  SPEC.md -> docs/spec.md                           (copied verbatim, if present)
   plugin.yml suite: -> docs/plugin-docs.json        (live session preview)
 
 Only source dirs that exist are rendered, so a plugin without guides/ or rules/
@@ -49,10 +49,12 @@ def run(root: str | pathlib.Path | None = None) -> int:
             for f in mds:
                 shutil.copyfile(f, docs / name / f.name)
 
-    # the plugin's spec, if it keeps one, so the docs site can serve it
+    # the plugin's spec, if it keeps one, so the docs site can serve it.
+    # Output is lowercase docs/spec.md so the docsify route is /spec (the source
+    # stays SPEC.md — the canonical name the ambient rules reference).
     spec = r / "SPEC.md"
     if spec.is_file():
         docs.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(spec, docs / "SPEC.md")
+        shutil.copyfile(spec, docs / "spec.md")
 
     return gen_plugin_docs.run(root)
