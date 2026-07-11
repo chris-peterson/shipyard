@@ -18,7 +18,7 @@ shipyard *projects* those into the generated, committed artifacts:
 | `shipyard gen-plugin-json` | `plugin.yml` → `.claude-plugin/plugin.json` |
 | `shipyard gen-suite-json` | `plugin.yml` `suite:` → `docs/suite.json` |
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
-| `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/` → `docs/` (+ suite.json) |
+| `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md` → `docs/` (+ suite.json) |
 | `shipyard changelog` | release body → `CHANGELOG.md` |
 | `shipyard build` | run every generator |
 | `shipyard check` | verify committed artifacts match source (CI gate) |
@@ -32,9 +32,15 @@ it is a hard error, not a fallback.
 
 ## Using it from a plugin
 
-A plugin's workflows call shipyard's reusable workflows; during consolidation
-they float to the `actions` branch (`@actions`). Versioning standardizes on
-semver + tags once shipyard reaches v1.
+A plugin's `.github/workflows/` are thin callers of shipyard's reusable
+workflows, and its `scripts/shipyard` wrapper fetches the CLI — both pinned to
+the same ref: `@main` while shipyard is pre-1.0 (float to latest), moving to
+semver tags once it reaches v1. See a converted plugin (e.g.
+[anchor](https://github.com/chris-peterson/anchor)) for the wrapper and the
+workflow callers.
+
+→ **[Docs](https://chris-peterson.github.io/shipyard)** — how it works, and a
+before/after walk-through of converting a plugin.
 
 ## Layout
 
