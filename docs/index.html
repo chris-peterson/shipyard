@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>shipyard</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="Shared build tooling for chris-peterson's Claude Code plugins.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+</head>
+<body>
+  <div id="app">Loading…</div>
+  <script src="https://chris-peterson.github.io/js/docsify-shared.js"></script>
+  <script>
+    // subMaxLevel: 0 keeps docsify from injecting a page's own headings into the
+    // sidebar as a phantom child tree (see the plugin docs sites for the rationale).
+    window.$docsify = { subMaxLevel: 0 };
+    initProject({
+      name: 'shipyard',
+      code_languages: ['bash', 'yaml', 'json', 'python'],
+      plugins: ['mermaid']
+    });
+  </script>
+</body>
+</html>
