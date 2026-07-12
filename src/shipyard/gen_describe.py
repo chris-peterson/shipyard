@@ -22,7 +22,7 @@ import re
 
 import yaml
 
-from ._common import load_plugin, plugin_root
+from ._common import diff, plugin_root
 
 BEGIN = "  # >>> shipyard:describe — generated from source by `shipyard gen-describe`; do not edit >>>"
 END = "  # <<< shipyard:describe <<<"
@@ -195,16 +195,18 @@ def _splice(text: str, block: str) -> str:
     return text.rstrip() + "\n" + block + "\n"
 
 
-def run(root: str | pathlib.Path | None = None, check: bool = False) -> int:
+def preview(root: str | pathlib.Path | None = None) -> str:
+    """The plugin.yml diff the next `generate` would splice in. derive() runs
+    first, so a missing hook description (etc.) fails loudly here too."""
     describe = derive(root)
     path = plugin_root(root) / "plugin.yml"
-    if check:
-        current = (load_plugin(root).get("suite") or {}).get("describe") or {}
-        if current != describe:
-            raise SystemExit(
-                f"{path} suite.describe is out of sync with source "
-                "(run `shipyard gen-describe`)."
-            )
-        return 0
+    current = path.read_text()
+    generated = _splice(current, render_block(describe))
+    return diff(path, current, generated, root)
+
+
+def run(root: str | pathlib.Path | None = None) -> int:
+    describe = derive(root)
+    path = plugin_root(root) / "plugin.yml"
     path.write_text(_splice(path.read_text(), render_block(describe)))
     return 0

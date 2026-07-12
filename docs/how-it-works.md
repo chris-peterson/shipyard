@@ -41,15 +41,15 @@ sequenceDiagram
   participant J as just / pre-commit
   participant W as scripts/shipyard
   participant C as ~/.cache/shipyard
-  J->>W: shipyard check
+  J->>W: shipyard generate --dry-run
   W->>C: clone or fast-forward @main
-  W->>W: PYTHONPATH=cache/src python3 -m shipyard check
-  W-->>J: exit 0 (in sync) / non-zero (drift)
+  W->>W: PYTHONPATH=cache/src python3 -m shipyard generate --dry-run
+  W-->>J: exit 0 (+ pending-projection diff) / non-zero (malformed source)
 ```
 
-## The check gate
+## The preview gate
 
-A plugin's CI calls shipyard's reusable `check` workflow on every push and pull request. It fetches shipyard, then verifies the committed `plugin.json` and `suite.describe` still match source — catching a stale artifact before it merges.
+A plugin's CI calls shipyard's reusable `preview` workflow on every push and pull request. It fetches shipyard, then dry-runs the projection: it validates that `plugin.yml` and `hooks.yml` are well-formed enough to project, and posts a diff of what the next release will apply to the committed artifacts. It fails only when the source itself is malformed. The committed artifacts trailing their source is expected between releases — the release workflow regenerates and commits them back — so that gap is surfaced, not gated.
 
 ## The release flow
 

@@ -13,17 +13,12 @@ import pathlib
 from ._common import load_plugin, plugin_root
 
 
-def run(root: str | pathlib.Path | None = None, check: bool = False) -> int:
+def run(root: str | pathlib.Path | None = None) -> int:
     suite = load_plugin(root).get("suite")
     if not suite:
         raise SystemExit("plugin.yml has no suite: block — the docs session preview needs it")
     generated = json.dumps(suite, indent=2, ensure_ascii=False) + "\n"
     target = plugin_root(root) / "docs" / "plugin-docs.json"
-    if check:
-        current = target.read_text() if target.exists() else ""
-        if current != generated:
-            raise SystemExit(f"{target} is out of sync with plugin.yml (run `shipyard gen-plugin-docs`).")
-        return 0
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(generated)
     return 0

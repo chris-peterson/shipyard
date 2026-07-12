@@ -26,7 +26,7 @@ import pathlib
 
 import yaml
 
-from ._common import plugin_root
+from ._common import diff, plugin_root
 
 
 def hooks_yml_path(root: str | pathlib.Path | None = None) -> pathlib.Path:
@@ -58,18 +58,21 @@ def build(root: str | pathlib.Path | None = None) -> str:
     return json.dumps({"hooks": out}, indent=2) + "\n"
 
 
-def run(root: str | pathlib.Path | None = None, check: bool = False) -> int:
+def preview(root: str | pathlib.Path | None = None) -> str:
+    # a plugin with no hooks.yml isn't on this model yet — nothing to preview
+    if not hooks_yml_path(root).exists():
+        return ""
+    generated = build(root)
+    target = plugin_root(root) / "hooks" / "hooks.json"
+    current = target.read_text() if target.exists() else ""
+    return diff(target, current, generated, root)
+
+
+def run(root: str | pathlib.Path | None = None) -> int:
     # a plugin with no hooks.yml isn't on this model yet — nothing to do
     if not hooks_yml_path(root).exists():
         return 0
     generated = build(root)
     target = plugin_root(root) / "hooks" / "hooks.json"
-    if check:
-        current = target.read_text() if target.exists() else ""
-        if current != generated:
-            raise SystemExit(
-                f"{target} is out of sync with hooks.yml (run `shipyard gen-hooks-json`)."
-            )
-        return 0
     target.write_text(generated)
     return 0

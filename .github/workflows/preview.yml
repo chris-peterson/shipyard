@@ -1,0 +1,35 @@
+name: Preview (shipyard)
+
+# Reusable gate: dry-run a plugin's projection (plugin.yml/hooks.yml → their
+# generated artifacts) on push / pull_request. It does NOT fail when the
+# committed artifacts trail their source — that gap is expected between releases
+# (the release workflow regenerates and commits them back). It fails only when
+# the source itself is malformed or missing required input, i.e. the projection
+# couldn't run. On success it posts a diff of the pending projection to the job
+# summary so reviewers see what release will apply.
+
+on:
+  workflow_call:
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PYTHONPATH: .shipyard/src
+    steps:
+      - name: Check out the plugin
+        uses: actions/checkout@v6
+      - name: Check out shipyard tooling
+        uses: actions/checkout@v6
+        with:
+          repository: chris-peterson/shipyard
+          ref: v1
+          path: .shipyard
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - run: pip install pyyaml
+      - name: Validate source and preview pending projection
+        run: python3 -m shipyard generate --dry-run
