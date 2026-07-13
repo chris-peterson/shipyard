@@ -1,15 +1,14 @@
 """Project plugin.yml → .claude-plugin/plugin.json.
 
 plugin.yml is the canonical descriptor; plugin.json is generated and committed
-(Claude Code reads the committed file at install). ``--check`` verifies the
-committed file is in sync (CI gate / pre-commit hook).
+(Claude Code reads the committed file at install).
 """
 from __future__ import annotations
 
 import json
 import pathlib
 
-from ._common import load_plugin, plugin_root
+from ._common import diff, load_plugin, plugin_root
 
 # plugin.json carries only the packaging fields, in this order. The rest of
 # plugin.yml (marketplace:, suite:) projects into other targets, not here.
@@ -44,17 +43,22 @@ def build(root: str | pathlib.Path | None = None) -> str:
     return json.dumps(out, indent=2) + "\n"
 
 
-def run(root: str | pathlib.Path | None = None, check: bool = False) -> int:
+def _target(root: str | pathlib.Path | None = None) -> pathlib.Path:
+    return plugin_root(root) / ".claude-plugin" / "plugin.json"
+
+
+def preview(root: str | pathlib.Path | None = None) -> str:
+    """The diff the next `generate` would apply. Calling build() first surfaces
+    any bad/missing input in plugin.yml as a hard error."""
     generated = build(root)
-    target = plugin_root(root) / ".claude-plugin" / "plugin.json"
-    if check:
-        current = target.read_text() if target.exists() else ""
-        if current != generated:
-            raise SystemExit(
-                f"{target} is out of sync with plugin.yml.\n"
-                "Run `shipyard gen-plugin-json` and commit the result."
-            )
-        return 0
+    target = _target(root)
+    current = target.read_text() if target.exists() else ""
+    return diff(target, current, generated, root)
+
+
+def run(root: str | pathlib.Path | None = None) -> int:
+    generated = build(root)
+    target = _target(root)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(generated)
     return 0

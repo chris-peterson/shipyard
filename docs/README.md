@@ -35,15 +35,14 @@ Every command runs against a target plugin repo (`--root <path>`, default: the c
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` |
 | `shipyard changelog` | a release body → `CHANGELOG.md` |
-| `shipyard build` | run every generator |
-| `shipyard check` | verify the committed artifacts still match source (the CI gate) |
+| `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (the CI gate) |
 
 ## How a plugin uses it
 
 Two thin touch-points in each plugin repo — no packaged install:
 
 - **`scripts/shipyard`** — a wrapper that clones shipyard to a cache, fast-forwards it, and runs `python3 -m shipyard` in place. `just` and the pre-commit hook drive it.
-- **`.github/workflows/`** — `release.yml`, `deploy-docs.yml`, and `check.yml` are one-line callers of shipyard's [reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows).
+- **`.github/workflows/`** — `release.yml`, `deploy-docs.yml`, and `preview.yml` are one-line callers of shipyard's [reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows).
 
 Both are pinned to the same ref: **`@main`** while shipyard is pre-1.0 (float to latest), moving to semver tags at v1.
 

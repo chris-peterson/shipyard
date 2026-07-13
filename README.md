@@ -21,8 +21,7 @@ shipyard *projects* those into the generated, committed artifacts:
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
 | `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md` → `docs/` (+ plugin-docs.json) |
 | `shipyard changelog` | release body → `CHANGELOG.md` |
-| `shipyard build` | run every generator |
-| `shipyard check` | verify committed artifacts match source (CI gate) |
+| `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (CI gate) |
 
 Every command takes `--root <plugin-repo>` (default: the current directory), so
 shipyard runs against a checked-out plugin, not itself.

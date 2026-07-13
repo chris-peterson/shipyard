@@ -85,7 +85,7 @@ PreToolUse→watchdog (Bash, Write|Edit); SessionStart→cli-freshness, emit-rul
 1. Declare hooks in `hooks/hooks.yml` (`event`, `matcher?`, `command`, `description`); `gen-hooks-json` generates `hooks.json`.
 2. Copy `scripts/shipyard` and the three workflow callers from anchor; point them at `@main`.
 3. Delete the local build scripts; wire `justfile` and the pre-commit hook to the wrapper.
-4. Run `shipyard gen-describe`, `shipyard gen-plugin-json`, `shipyard build-docs`, and confirm `shipyard check` is green.
-5. Open the PR — the reusable `check` workflow verifies the generated artifacts in CI.
+4. Run `shipyard gen-describe`, `shipyard gen-plugin-json`, `shipyard build-docs`, and confirm `shipyard generate --dry-run` runs clean.
+5. Open the PR — the reusable `preview` workflow validates the source and posts the pending projection in CI.
 
-Not every plugin fits the generic renderer. ClaudeWatch keeps its bespoke docsify pipeline (its Rules/Prompts pages are generated from a `watches/` config) and uses shipyard only for the generators, check, and release — a deliberate per-plugin exception.
+Not every plugin fits the generic renderer. A plugin with a bespoke docs pipeline can use shipyard for only the generators, preview, and release and keep its own rendering — a deliberate per-plugin exception.
