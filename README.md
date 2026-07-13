@@ -19,7 +19,7 @@ shipyard *projects* those into the generated, committed artifacts:
 | `shipyard gen-hooks-json` | `hooks/hooks.yml` → `hooks/hooks.json` |
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
-| `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md` → `docs/` (+ plugin-docs.json) |
+| `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md` → `docs/` (+ plugin-docs.json, and `docs/index.html` from `plugin.yml` `docs:`) |
 | `shipyard changelog` | release body → `CHANGELOG.md` |
 | `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (CI gate) |
 
