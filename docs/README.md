@@ -34,7 +34,7 @@ Every command runs against a target plugin repo (`--root <path>`, default: the c
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` (+ the docsify `index.html`, from `plugin.yml` `docs:`) |
-| `shipyard changelog` | a release body → `CHANGELOG.md` |
+| `shipyard changelog` | a release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
 | `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (the CI gate) |
 
 ## How a plugin uses it
@@ -46,7 +46,7 @@ Two thin touch-points in each plugin repo — no packaged install:
 
 Both are pinned to the same ref: **`@main`** while shipyard is pre-1.0 (float to latest), moving to semver tags at v1.
 
-Read on: **[How it works](how-it-works.md)** for the projection and CI flows, or the **[before/after walk-through](example.md)** of converting a real plugin.
+Read on: **[How it works](how-it-works.md)** for the projection and CI flows, **[Cutting a release](releasing.md)** for the contract every harness that publishes one has to follow, or the **[before/after walk-through](example.md)** of converting a real plugin.
 
 ---
 

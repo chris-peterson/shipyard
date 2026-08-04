@@ -1,0 +1,23 @@
+name: Tests
+
+# shipyard's own unit tests. (The other workflows here are reusable ones that
+# plugins call; this one guards shipyard itself, which every plugin's CI runs.)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - run: pip install -e ".[dev]"
+      - run: pytest

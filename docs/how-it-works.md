@@ -72,3 +72,5 @@ sequenceDiagram
 ```
 
 Nothing here is plugin-specific — the plugin name comes from the repository — so the same reusable workflow drives all eight.
+
+What the person (or agent) publishing the release is responsible for, and what to leave to CI, is in **[Cutting a release](releasing.md)**.
