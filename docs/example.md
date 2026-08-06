@@ -4,7 +4,7 @@ A walk-through of the real conversion of [**anchor**](https://github.com/chris-p
 
 ## Before: every plugin carried the same scripts
 
-Each repo had its own copies of the build logic and workflows. A fix to any of them had to be repeated in eight places.
+Each repo had its own copies of the build logic and workflows. A fix to any of them had to be repeated once per repo.
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%

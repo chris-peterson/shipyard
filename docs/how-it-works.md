@@ -2,6 +2,12 @@
 
 Two halves: the **generators** that project source into artifacts, and the **reusable CI** that runs them in each plugin.
 
+## Two kinds of target
+
+shipyard runs against a checked-out repo, and tells what kind it is from the manifest at its root: a **plugin** carries `plugin.yml`, an **aggregator** carries `plugins.yml`. `generate` dispatches on that, so there is one projection verb rather than two command families to keep in sync.
+
+The distinction is about who owns which fact. A plugin owns everything about itself. An aggregator owns only the roster — which plugins it presents, and in what order — and reads the rest off the plugins themselves.
+
 ## Generators
 
 Each generator reads a plugin's canonical source and writes a committed artifact.
@@ -30,6 +36,38 @@ flowchart LR
   yml --> hub["bridge.ai tooltips"]
   yml --> site["plugin docs preview"]
 ```
+
+## Aggregate generators
+
+An aggregator — a marketplace, a catalog site — used to hand-maintain a second copy of every plugin's description, author, category, and homepage. That copy is a projection of facts the plugins already declare, so it drifts: a description reworded in the plugin's own repo has no path to the marketplace except somebody editing it there too.
+
+`plugins.yml` removes the copy. It declares only what the aggregator owns, and the plugins supply the rest:
+
+```mermaid
+%%{ init: { 'look': 'handDrawn' } }%%
+flowchart LR
+  roster["plugins.yml"] --> sync["sync: clone the plugins"]
+  sync --> spokes["each plugin.yml"]
+  roster --> mp["marketplace.json"]
+  spokes --> mp
+  log["artifacts log"] --> js["docs/plugins.js"]
+  spokes --> js
+  spokes --> deps["docs/deps.json"]
+```
+
+- **`gen-marketplace-json`** — the roster plus each plugin's `plugin.yml` become the `marketplace.json` Claude Code reads at `marketplace add`. Generated and committed, the same split as `plugin.yml` → `plugin.json` one level up.
+- **`gen-plugins-js`** and **`gen-deps-json`** — the doc site's catalog data and dependency graph, projected from the plugins' `suite:` blocks. Render targets, regenerated on every docs build.
+- **`roster`** — prints the declared plugins as `name<TAB>url` pairs.
+
+Two design points carry most of the weight:
+
+**`source:` is a URL template, not a per-entry field.** The aggregator's sync step needs to know what to clone *before* any plugin is on disk. Resolving `https://github.com/{owner}/{name}.git` from the roster alone keeps `roster` readable with an empty workspace — which is what lets `marketplace.json` be purely downstream rather than doubling as the list of things to fetch.
+
+**A rostered plugin with no `plugin.yml` is a hard error.** The alternative — skipping it, or falling back to a stale local copy — would publish an incomplete catalog that looks complete. Unsynced plugins fail the build instead.
+
+The artifact log is the one derived input: a rolling record of each plugin's named skills, rules, and hooks that the aggregator's recorder writes from the plugins' git state. shipyard reads it when `plugins.yml` declares an `artifacts:` path, replaying its `+`/`-` tokens to get the current member set, so the catalog can't list a skill a plugin no longer ships. Component names are never declared, only derived.
+
+A plugin may declare a dependency on something the roster doesn't carry — an optional backend the marketplace doesn't ship. Those edges survive into `deps.json` while `nodes` stays the roster; that gap is what lets the doc site's graph draw an outside plugin differently from a catalog one.
 
 ## The wrapper: fetch-and-run, no install
 
@@ -71,6 +109,6 @@ sequenceDiagram
   MP->>MP: rebuild the catalog from every plugin.yml
 ```
 
-Nothing here is plugin-specific — the plugin name comes from the repository — so the same reusable workflow drives all eight.
+Nothing here is plugin-specific — the plugin name comes from the repository — so one reusable workflow drives every plugin.
 
 What the person (or agent) publishing the release is responsible for, and what to leave to CI, is in **[Cutting a release](releasing.md)**.

@@ -1,8 +1,8 @@
 # shipyard
 
-Shared build tooling for [chris-peterson's Claude Code plugins](https://chris-peterson.github.io/claude-marketplace/) — the eight plugins behind **bridge.ai** (anchor, beacon, ClaudeWatch, logbook, moor, sextant, shipshape, tack).
+Shared build tooling for [chris-peterson's Claude Code plugins](https://chris-peterson.github.io/claude-marketplace/) — the plugins behind **bridge.ai**.
 
-Every plugin repo used to carry its own copy of the same build scripts and CI workflows. A fix had to be made eight times and drifted in between. shipyard holds that logic **once**; each plugin fetches it and calls it.
+Every plugin repo used to carry its own copy of the same build scripts and CI workflows. A fix had to be made once per repo, and drifted in between. shipyard holds that logic **once**; each plugin fetches it and calls it.
 
 ## The principle: source is the source of record
 
@@ -36,6 +36,19 @@ Every command runs against a target plugin repo (`--root <path>`, default: the c
 | `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` (+ the docsify `index.html`, from `plugin.yml` `docs:`) |
 | `shipyard changelog` | a release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
 | `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (the CI gate) |
+
+### Aggregating plugins
+
+A marketplace or catalog site is the other kind of target. It declares a `plugins.yml` — its identity plus the roster, and nothing about the plugins themselves — and shipyard reads each plugin's own `plugin.yml` from a sibling checkout for the rest. So a description reworded in a plugin's repo reaches the marketplace by regenerating, not by a second hand-edit somewhere else.
+
+| Command | Projection |
+|---|---|
+| `shipyard roster` | `plugins.yml` → `name<TAB>url` pairs, resolvable before anything is cloned |
+| `shipyard gen-marketplace-json` | `plugins.yml` + the plugins' `plugin.yml` → `.claude-plugin/marketplace.json` |
+| `shipyard gen-plugins-js` | the plugins' `suite:` blocks → `docs/plugins.js` |
+| `shipyard gen-deps-json` | the plugins' `suite.dependencies` → `docs/deps.json` |
+
+`generate` dispatches on the manifest at `--root`, so one verb covers both kinds of target.
 
 ## How a plugin uses it
 

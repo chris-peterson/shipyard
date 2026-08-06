@@ -23,7 +23,7 @@ shipyard *projects* those into the generated, committed artifacts:
 | `shipyard changelog` | release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
 | `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (CI gate) |
 
-Every command takes `--root <plugin-repo>` (default: the current directory), so
+Every command takes `--root <repo>` (default: the current directory), so
 shipyard runs against a checked-out plugin, not itself.
 
 Hooks are declared in `hooks/hooks.yml` — the source of record, a flat, commentable
@@ -31,6 +31,36 @@ list of `{event, matcher?, command, description}` — which shipyard projects in
 `hooks/hooks.json` Claude Code reads (same split as `plugin.yml` → `plugin.json`).
 `gen-describe` reads the descriptions straight from `hooks.yml`, so no
 `# DOCUMENTATION:` line in the hook scripts is needed.
+
+## Aggregating a set of plugins
+
+A marketplace or catalog site is the other kind of target. Its source of record is
+a `plugins.yml` naming only what it owns — its identity, the roster, and the
+roster's order — because everything shown *about* a plugin is already declared in
+that plugin's `plugin.yml`:
+
+```yaml
+name: chris-peterson
+description: Chris Peterson's Claude Code plugins
+owner: chris-peterson
+source: https://github.com/{owner}/{name}.git
+artifacts: suite/artifacts.csv   # optional
+plugins:
+  - anchor
+  - beacon
+```
+
+| Command | Projection |
+|---|---|
+| `shipyard roster` | `plugins.yml` → `name<TAB>url` pairs, resolvable with no plugin checkouts |
+| `shipyard gen-marketplace-json` | `plugins.yml` + the plugins' `plugin.yml` → `.claude-plugin/marketplace.json` |
+| `shipyard gen-plugins-js` | the plugins' `suite:` blocks → `docs/plugins.js` |
+| `shipyard gen-deps-json` | the plugins' `suite.dependencies` → `docs/deps.json` |
+
+`generate` dispatches on the manifest it finds at `--root`, so the same verb drives
+both kinds: `plugin.yml` projects a plugin, `plugins.yml` projects an aggregator.
+The plugins are read from sibling checkouts beside the aggregator — the layout the
+aggregator's own sync step produces, which `roster` is what bootstraps.
 
 ## Using it from a plugin
 
