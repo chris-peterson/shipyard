@@ -1,3 +1,4 @@
 - [shipyard](/)
 - [How it works](how-it-works.md)
+- [Cutting a release](releasing.md)
 - [Example: converting a plugin](example.md)
