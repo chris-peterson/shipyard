@@ -24,7 +24,29 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
   Hooks are declared in `hooks/hooks.yml` — the source of record, a flat, commentable list of `{event, matcher?, command, description}` — which **`gen-hooks-json`** projects into the `hooks/hooks.json` Claude Code reads (the same source → generated split as `plugin.yml` → `plugin.json`). `gen-describe` reads each hook's `description:` straight from `hooks.yml`, so the hook scripts carry no `# DOCUMENTATION:` line.
 
-- **`build-docs`** — renders `skills/` (with each skill's own `references/`), `rules/`, `guides/`, `templates/`, `references/`, `SPEC.md`, `STATUS.md`, and any versioned `spec/<version>/SPEC.md` into `docs/`, plus `plugin-docs.json`. When `plugin.yml` carries a `docs:` block it also projects the docsify `docs/index.html` (title/description from the packaging fields; `code_languages` and `mermaid` from `docs:`; the session player when a `suite:` is present) — so the bootstrap lives here once instead of a hand-copied file per plugin. The plugin's docsify site serves the result; nothing is hand-maintained twice.
+- **`gen-cli-manifest`** — for a plugin whose primary surface is a CLI. Its command and flag grammar is a public contract callers script against, and nothing recorded it: a renamed flag reached users as an unexplained behavior change, with no diff anywhere that named it. This generator runs the CLI, parses its help output, and writes a structured manifest the repo commits.
+
+  It's the only generator whose source of record is a running program rather than a file, so the repo declares how to reach it:
+
+  ```yaml
+  cli:
+    invoke: node dist/cli.js     # how to run it
+    engine: usage-lines          # which help-output parser to use
+    manifest: spec/v1/cli.yml    # where the recording lands
+  ```
+
+  `invoke` keeps shipyard engine-agnostic about *running* a CLI — it shells out to whatever you declare — while `engine` picks the parser, since a framework's help format is its own. A plugin that declares no `cli:` block is unaffected.
+
+  Two things follow from the manifest being a recording of help output. It asserts what the CLI *documents*, which is not the same claim as what it accepts — a flag absent from `--help` is absent here. And it's never hand-edited: each run rewrites it, and a CLI whose help the engine can't parse fails the generator instead of writing a half-manifest, which would read exactly like a CLI that dropped half its commands.
+
+  **This is the one artifact whose drift is gated.** Everywhere else the committed copy is expected to trail its source between releases; a grammar change instead has to be visible in the diff of the change that made it, so `gen-cli-manifest --check` fails when the two disagree and names the forms that moved:
+
+  ```text
+  - tack deliverable rm <slug> <tack-id> [--to-link]
+  + tack deliverable rm <slug> <tack-id>
+  ```
+
+- **`build-docs`** — renders `skills/` (with each skill's own `references/`), `rules/`, `guides/`, `templates/`, `references/`, `SPEC.md`, `STATUS.md`, and any versioned `spec/<version>/SPEC.md` into `docs/`, plus `plugin-docs.json`. A committed CLI manifest also becomes a `docs/cli.md` command reference, which is where the recording pays for itself twice: the page can't drift from the binary the way a hand-maintained command table does. It renders from the *committed* manifest, so building the docs never needs the CLI built. When `plugin.yml` carries a `docs:` block it also projects the docsify `docs/index.html` (title/description from the packaging fields; `code_languages` and `mermaid` from `docs:`; the session player when a `suite:` is present) — so the bootstrap lives here once instead of a hand-copied file per plugin. The plugin's docsify site serves the result; nothing is hand-maintained twice.
 
   When a `suite:` is present it also renders **`docs/_home.md`** — the plugin's home page, projected from the same block the bridge.ai catalog card is built from, so the two surfaces describe a plugin identically without either being written twice. The page carries the gloss, the pitch, and the install command, then the `describe:` map as a table of skills, rules, and hooks, each linked to the page this build renders for it; `cmds` supplies the author's own copy for the skills it names; `dependencies` becomes what the plugin works with.
 
@@ -106,6 +128,16 @@ sequenceDiagram
 ## The preview gate
 
 A plugin's CI calls shipyard's reusable `preview` workflow on every push and pull request. It fetches shipyard, then dry-runs the projection: it validates that `plugin.yml` and `hooks.yml` are well-formed enough to project, and posts a diff of what the next release will apply to the committed artifacts. It fails only when the source itself is malformed. The committed artifacts trailing their source is expected between releases — the release workflow regenerates and commits them back — so that gap is surfaced, not gated.
+
+The same job then checks the CLI grammar, which *is* gated (see `gen-cli-manifest` above), and no-ops for a plugin that declares no `cli:`. The dry-run above deliberately leaves the manifest out: every other projection reads files the checkout already has, while this one runs the CLI, and a preview job has no toolchain to build one. A plugin whose `invoke` points at a build output passes the command that produces it:
+
+```yaml
+jobs:
+  preview:
+    uses: chris-peterson/shipyard/.github/workflows/preview.yml@v1
+    with:
+      cli-build: npm ci && npm run build
+```
 
 ## The release flow
 

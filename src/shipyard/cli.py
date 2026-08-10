@@ -31,19 +31,25 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="shipyard", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    def add(name: str, *, dry_run: bool = False,
+    def add(name: str, *, dry_run: bool = False, check: bool = False,
             help: str = "") -> argparse.ArgumentParser:
         p = sub.add_parser(name, help=help)
         p.add_argument("--root", default=None, help="target plugin repo (default: cwd)")
         if dry_run:
             p.add_argument("--dry-run", action="store_true",
                            help="validate source and diff the pending projection; write nothing")
+        if check:
+            p.add_argument("--check", action="store_true",
+                           help="fail when the committed artifact has drifted; write nothing")
         return p
 
     add("gen-plugin-json", help="plugin.yml → .claude-plugin/plugin.json")
     add("gen-hooks-json", help="hooks/hooks.yml → hooks/hooks.json")
     add("gen-plugin-docs", help="plugin.yml suite: → docs/plugin-docs.json")
     add("gen-describe", help="source → plugin.yml suite.describe")
+    add("gen-cli-manifest", check=True,
+        help="the declared CLI's --help → its committed grammar manifest; "
+             "--check fails on drift")
     add("build-docs", help="render skills/rules/… into docs/ (+ plugin-docs.json); "
                            "SHIPYARD_RESOURCES names extra paths to publish")
     add("changelog", help="prepend a release section to CHANGELOG.md (VERSION/BODY env)")
@@ -105,6 +111,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "gen-describe":
         from . import gen_describe
         return gen_describe.run(root)
+    if args.command == "gen-cli-manifest":
+        from . import gen_cli_manifest
+        if getattr(args, "check", False):
+            return gen_cli_manifest.check(root)
+        return gen_cli_manifest.run(root)
     if args.command == "build-docs":
         from . import build_docs
         return build_docs.run(root, build_docs.resources_from_env())
@@ -127,13 +138,20 @@ def main(argv: list[str] | None = None) -> int:
         from ._aggregate import is_aggregate
         if is_aggregate(root):
             return _generate_aggregate(root, getattr(args, "dry_run", False))
-        from . import gen_hooks_json, gen_describe, gen_plugin_json, build_docs
+        from . import (build_docs, gen_cli_manifest, gen_describe, gen_hooks_json,
+                       gen_plugin_json)
         if getattr(args, "dry_run", False):
-            # Dry-run the three committed artifacts. Each preview() calls its
+            # Dry-run the committed artifacts. Each preview() calls its
             # build()/derive() first, so malformed/missing source still fails
             # loudly here — that's the only red condition. Diffs are derived from
             # the committed tree (nothing is written), so describe's wiring
             # reflects the committed hooks.json, not a freshly-generated one.
+            #
+            # The CLI manifest is deliberately absent. Every other projection
+            # reads files this checkout already has, but that one runs the CLI,
+            # which a preview job has no toolchain to build. Its drift has its
+            # own gate — `gen-cli-manifest --check` — which is where a grammar
+            # change belongs anyway: under review, not trailing until release.
             diffs = [d for d in (
                 gen_plugin_json.preview(root),
                 gen_hooks_json.preview(root),
@@ -145,6 +163,8 @@ def main(argv: list[str] | None = None) -> int:
         gen_hooks_json.run(root)
         gen_describe.run(root)
         gen_plugin_json.run(root)
+        # before the docs, which render the manifest into the CLI reference page
+        gen_cli_manifest.run(root)
         build_docs.run(root, build_docs.resources_from_env())
         return 0
     return 1

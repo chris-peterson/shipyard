@@ -37,6 +37,8 @@ src/shipyard/build_docs.py  renders skills/rules/guides/templates/references/SPE
 src/shipyard/links.py     docsify's routing and heading-slug rules, for the link rewrite and the link check
 tests/                    pytest suites
 docs/                     shipyard's own docsify site, published by pages.yml
+docs/cli-manifest.v1.json the CLI manifest's schema — published, so a consumer
+                          can validate one without guessing at its shape
 .github/workflows/        the reusable workflows plugins call, plus shipyard's own CI
 ```
 
@@ -53,6 +55,16 @@ into generated, committed artifacts (`.claude-plugin/plugin.json`,
 of `docs/`). A generator that reads something a plugin hand-maintains, rather than
 its declared source, breaks the split the whole suite depends on.
 
+`gen-cli-manifest` is the one whose source of record is a *running program*: it
+invokes the CLI declared in `plugin.yml`'s `cli:` block and records the grammar
+its help documents. Two consequences shape the code. The manifest asserts what
+the CLI documents rather than what it accepts, so a parser must never infer a
+flag that wasn't printed. And it's the one artifact whose drift is *gated*
+(`--check`) rather than surfaced, because a CLI's grammar is a public contract
+and a rename has to appear in the diff of the change that made it — which is
+also why it is left out of `generate --dry-run`, where a preview job has no
+toolchain to build the CLI it would have to run.
+
 **The reusable workflows are a public API.** `.github/workflows/{deploy-docs,
 preview,release}.yml` are called by every plugin via `uses:
 chris-peterson/shipyard/.github/workflows/<name>.yml@v1`. Changing an input,
@@ -62,8 +74,8 @@ is what they pin, so a breaking change needs a new tag rather than a moved one.
 
 ## Conventions
 
-- **Preview never fails on drift.** Between releases the committed artifacts are
-  *expected* to trail their source — the release workflow regenerates and commits
+- **Preview never fails on drift**, the CLI manifest above excepted. Between
+  releases the committed artifacts are *expected* to trail their source — the release workflow regenerates and commits
   them back. `generate --dry-run` fails only when the source itself is malformed
   or missing required input; otherwise it posts the pending diff to the job
   summary so a reviewer sees what release will apply. Making preview gate on
@@ -71,6 +83,12 @@ is what they pin, so a breaking change needs a new tag rather than a moved one.
 - **`generate` is the single projection verb.** The per-artifact `gen-*` commands
   exist for targeted use; anything that should happen at release happens under
   `generate`, so there is one thing to call and one thing to keep in sync.
+- **A new CLI engine is a parser, not a special case.** `gen-cli-manifest`'s
+  engines are keyed by name in `ENGINES` and all target the same manifest shape,
+  so adding one (argparse, System.CommandLine) means writing a parser to that
+  shape, not widening the shape to fit a framework. An engine that can walk its
+  own parser should do that rather than parse prose; help text is the fallback
+  for the ones that can't.
 - **Missing required source is an error, not a default.** `load_plugin` raises on
   a missing `plugin.yml` rather than projecting from an empty dict — a generator
   that quietly writes a stub artifact produces a plugin that looks built and
