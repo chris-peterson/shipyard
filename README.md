@@ -19,7 +19,7 @@ shipyard *projects* those into the generated, committed artifacts:
 | `shipyard gen-hooks-json` | `hooks/hooks.yml` → `hooks/hooks.json` |
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
-| `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md` → `docs/` (+ plugin-docs.json, and `docs/index.html` from `plugin.yml` `docs:`) |
+| `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md`,`assets/` → `docs/` (+ plugin-docs.json, and `docs/index.html` from `plugin.yml` `docs:`) |
 | `shipyard changelog` | release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
 | `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (CI gate) |
 
@@ -70,9 +70,18 @@ the `v1` tag. See a converted plugin (e.g.
 [anchor](https://github.com/chris-peterson/anchor)) for the wrapper and the
 workflow callers.
 
+Only `docs/` is published, so art a page references from elsewhere in the repo
+404s on the live site. `build-docs` copies the plugin's **resource paths** into
+the published tree to close that (`assets/` unless the caller names others — see
+the `resources` input on `actions/build-docs`), then fails the build on any local
+reference the tree can't resolve. That last part is what makes the failure
+visible: a missing image otherwise produces a green deploy and a blank page.
+
 → **[Docs](https://chris-peterson.github.io/shipyard)** — how it works, and a
 before/after walk-through of converting a plugin.
 
 Working on shipyard — repo layout, how to run the generators against a plugin
 checkout, and the two contracts that reach outside this repo — is in
 [AGENTS.md](./AGENTS.md), the same file the agents read.
+actions/               composite actions plugins call via `uses:` in a step
+.github/workflows/     reusable workflows plugins call via `uses:` in a job
