@@ -2,7 +2,7 @@ name: Deploy docs (shipyard)
 
 # Reusable docs deploy. A plugin calls it from its own deploy-docs.yml on push to
 # main. shipyard renders docs/ from the plugin's sources (skills/rules/… +
-# suite.json), then publishes docs/ to GitHub Pages.
+# suite.json) via actions/build-docs, then publishes docs/ to GitHub Pages.
 #
 # GitHub Pages needs pages: write + id-token: write. Reusable-workflow permissions
 # are capped by the caller's token, so the caller must grant those at its top
@@ -10,6 +10,15 @@ name: Deploy docs (shipyard)
 
 on:
   workflow_call:
+    inputs:
+      resources:
+        description: >-
+          Newline-separated paths whose contents are published alongside docs/,
+          for art a page references from outside it. Empty uses the default
+          (assets). Forwarded to actions/build-docs.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   pages: write
@@ -25,24 +34,16 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    env:
-      PYTHONPATH: .shipyard/src
     steps:
       - name: Check out the plugin
         uses: actions/checkout@v6
-      - name: Check out shipyard tooling
-        uses: actions/checkout@v6
-        with:
-          repository: chris-peterson/shipyard
-          ref: v1
-          path: .shipyard
       - uses: actions/configure-pages@v6
-      - uses: actions/setup-python@v6
+      # Pinned rather than tracking the ref the caller pinned this workflow at:
+      # `uses:` takes no expression, so ${{ github.ref }} isn't available here.
+      # Move both together when v1 advances.
+      - uses: chris-peterson/shipyard/actions/build-docs@v1
         with:
-          python-version: '3.x'
-      - run: pip install pyyaml
-      - name: Render docs from source
-        run: python3 -m shipyard build-docs
+          resources: ${{ inputs.resources }}
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs

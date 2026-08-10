@@ -44,7 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     add("gen-hooks-json", help="hooks/hooks.yml → hooks/hooks.json")
     add("gen-plugin-docs", help="plugin.yml suite: → docs/plugin-docs.json")
     add("gen-describe", help="source → plugin.yml suite.describe")
-    add("build-docs", help="render skills/rules/… into docs/ (+ plugin-docs.json)")
+    add("build-docs", help="render skills/rules/… into docs/ (+ plugin-docs.json); "
+                           "SHIPYARD_RESOURCES names extra paths to publish")
     add("changelog", help="prepend a release section to CHANGELOG.md (VERSION/BODY env)")
     add("roster", help="plugins.yml → name/url pairs (no plugin checkouts needed)")
     add("gen-marketplace-json", help="plugins.yml + plugins → .claude-plugin/marketplace.json")
@@ -106,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         return gen_describe.run(root)
     if args.command == "build-docs":
         from . import build_docs
-        return build_docs.run(root)
+        return build_docs.run(root, build_docs.resources_from_env())
     if args.command == "changelog":
         from . import changelog
         return changelog.run(root)
@@ -144,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         gen_hooks_json.run(root)
         gen_describe.run(root)
         gen_plugin_json.run(root)
-        build_docs.run(root)
+        build_docs.run(root, build_docs.resources_from_env())
         return 0
     return 1
 
