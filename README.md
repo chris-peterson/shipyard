@@ -36,17 +36,13 @@ list of `{event, matcher?, command, description}` — which shipyard projects in
 
 A plugin's `.github/workflows/` are thin callers of shipyard's reusable
 workflows, and its `scripts/shipyard` wrapper fetches the CLI — both pinned to
-the same ref: `@main` while shipyard is pre-1.0 (float to latest), moving to
-semver tags once it reaches v1. See a converted plugin (e.g.
+the `v1` tag. See a converted plugin (e.g.
 [anchor](https://github.com/chris-peterson/anchor)) for the wrapper and the
 workflow callers.
 
 → **[Docs](https://chris-peterson.github.io/shipyard)** — how it works, and a
 before/after walk-through of converting a plugin.
 
-## Layout
-
-```
-src/shipyard/          the CLI + generators
-.github/workflows/     reusable workflows plugins call via `uses:`
-```
+Working on shipyard — repo layout, how to run the generators against a plugin
+checkout, and the two contracts that reach outside this repo — is in
+[AGENTS.md](./AGENTS.md), the same file the agents read.
