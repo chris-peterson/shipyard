@@ -33,7 +33,7 @@ Every command runs against a target plugin repo (`--root <path>`, default: the c
 | `shipyard gen-plugin-json` | `plugin.yml` → `.claude-plugin/plugin.json` |
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
-| `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` (+ the docsify `index.html`, from `plugin.yml` `docs:`) |
+| `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` (+ the docsify `index.html`, from `plugin.yml` `docs:`, and the home page `_home.md`, from `suite:`) |
 | `shipyard changelog` | a release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
 | `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (the CI gate) |
 
