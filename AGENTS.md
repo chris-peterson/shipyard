@@ -33,7 +33,8 @@ the tree.
 src/shipyard/cli.py       the entry point and subcommand table
 src/shipyard/_common.py   root resolution, plugin.yml loading, the diff helper
 src/shipyard/gen_*.py     one module per projection
-src/shipyard/build_docs.py  renders skills/rules/guides/templates/SPEC.md into docs/
+src/shipyard/build_docs.py  renders skills/rules/guides/templates/references/SPEC.md/STATUS.md into docs/
+src/shipyard/links.py     docsify's routing and heading-slug rules, for the link rewrite and the link check
 tests/                    pytest suites
 docs/                     shipyard's own docsify site, published by pages.yml
 .github/workflows/        the reusable workflows plugins call, plus shipyard's own CI

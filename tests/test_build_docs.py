@@ -178,6 +178,13 @@ def _home_plugin(tmp_path, plugin_yml=HOME_YML):
     (tmp_path / "hooks" / "hooks.yml").write_text(HOOKS_YML)
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "README.md").write_text("# demo\n")
+    # The sources behind the describe: entries. A row links only where the build
+    # publishes a page, so the artifacts a home-page test is about have to exist.
+    for skill in ("build", "audit"):
+        (tmp_path / "skills" / skill).mkdir(parents=True)
+        (tmp_path / "skills" / skill / "SKILL.md").write_text(f"# {skill}\n")
+    (tmp_path / "rules").mkdir()
+    (tmp_path / "rules" / "stay-put.md").write_text("# stay put\n")
     build_docs.run(tmp_path)
     return (tmp_path / "docs" / "_home.md").read_text()
 
@@ -323,6 +330,133 @@ def test_references_that_resolve_outside_the_artifact_are_not_checked(plugin, re
     write("docs/README.md", f'<img src="{ref}">')
 
     assert build_docs.run(root) == 0
+
+
+def test_the_spec_and_the_ledger_are_both_served(plugin):
+    root, write = plugin
+    write("SPEC.md", "# spec\n")
+    write("STATUS.md", "# status\n")
+    write("docs/README.md", "# demo")
+
+    build_docs.run(root)
+
+    assert (root / "docs" / "spec.md").exists()
+    assert (root / "docs" / "status.md").exists()
+
+
+def test_an_earlier_builds_differently_cased_page_is_replaced(plugin):
+    """On macOS a write to docs/spec.md lands *in* a leftover docs/SPEC.md, so the
+    page is named one way locally and another in CI — and the routes follow."""
+    root, write = plugin
+    write("SPEC.md", "# spec\n")
+    write("docs/SPEC.md", "# stale\n")
+    write("docs/README.md", "# demo")
+
+    build_docs.run(root)
+
+    assert {p.name for p in (root / "docs").glob("*[sS][pP][eE][cC].md")} == {"spec.md"}
+
+
+def test_a_versioned_spec_is_served_at_its_version(plugin):
+    """tack's ledger cites `spec/v1/SPEC.md` — the contract it actually tracks,
+    and a path a site carrying only the root spec reaches nothing at."""
+    root, write = plugin
+    write("spec/v1/SPEC.md", "# the contract\n")
+    write("STATUS.md", "Tracking [`spec/v1/SPEC.md`](spec/v1/SPEC.md).\n")
+    write("docs/README.md", "# demo")
+
+    build_docs.run(root)
+
+    assert (root / "docs" / "spec" / "v1.md").exists()
+    assert "(/spec/v1)" in (root / "docs" / "status.md").read_text()
+
+
+def test_a_skills_link_to_a_shared_reference_resolves_on_the_site(plugin):
+    """sextant's whole docs site, in one case: three skills defer to one
+    procedure under references/, and every one of those links 404'd."""
+    root, write = plugin
+    write("references/locate-spec.md", "# locate order\n")
+    write("skills/spec-req/SKILL.md",
+          "---\nname: spec-req\n---\nPer [locate](../../references/locate-spec.md).\n")
+    write("docs/README.md", "# demo")
+
+    build_docs.run(root)
+
+    assert (root / "docs" / "references" / "locate-spec.md").exists()
+    assert "[locate](/references/locate-spec)" in (
+        root / "docs" / "skills" / "spec-req.md").read_text()
+
+
+def test_a_skills_own_references_travel_with_it(plugin):
+    """logbook's note skill keeps its references beside it rather than in a
+    root-level dir, so the published tree has to keep that shape."""
+    root, write = plugin
+    write("skills/note/references/hand-edit-mode.md", "# hand edit\n")
+    write("skills/note/SKILL.md", "See [mode](references/hand-edit-mode.md).\n")
+    write("docs/README.md", "# demo")
+
+    build_docs.run(root)
+
+    assert (root / "docs" / "skills" / "note" / "references" / "hand-edit-mode.md").exists()
+    assert "[mode](/skills/note/references/hand-edit-mode)" in (
+        root / "docs" / "skills" / "note.md").read_text()
+
+
+def test_a_link_to_a_page_the_build_does_not_publish_fails_the_build(plugin):
+    """The failure mode this check exists for: docsify renders its own 404 inside
+    a page that loaded fine, so the deploy is green and only a reader finds out."""
+    root, write = plugin
+    write("skills/thing/SKILL.md", "See [changes](../../CHANGELOG.md).\n")
+    write("docs/README.md", "# demo")
+
+    with pytest.raises(SystemExit, match=r"CHANGELOG\.md"):
+        build_docs.run(root)
+
+
+def test_a_hand_written_page_pointing_at_a_missing_route_fails_too(plugin):
+    """sextant's own meta page linked /STATUS while the build published nothing
+    at that route."""
+    root, write = plugin
+    write("docs/meta.md", "The ledger lives at [STATUS.md](/STATUS).")
+    write("docs/README.md", "# demo")
+
+    with pytest.raises(SystemExit, match="/STATUS"):
+        build_docs.run(root)
+
+
+def test_a_link_to_an_anchor_the_target_page_lacks_fails_the_build(plugin):
+    root, write = plugin
+    write("SPEC.md", "# spec\n\n#### `LOCATE-01`\nThe system shall.\n")
+    write("docs/README.md", "See [it](/spec?id=locate-99).")
+
+    with pytest.raises(SystemExit, match="locate-99"):
+        build_docs.run(root)
+
+
+def test_a_backticked_requirement_heading_still_answers_to_its_bare_anchor(plugin):
+    """sextant heads every requirement with `` `XX-NN` ``; docsify and GitHub both
+    drop the code markup when slugging, so SPEC.md#locate-01 keeps resolving."""
+    root, write = plugin
+    write("SPEC.md", "# spec\n\n#### `LOCATE-01`\nThe system shall.\n")
+    write("docs/README.md", "See [it](/spec?id=locate-01).")
+
+    assert build_docs.run(root) == 0
+
+
+def test_a_described_artifact_with_no_page_reads_as_a_name_not_a_link(tmp_path):
+    """`suite.describe` is a committed projection, so between releases it can name
+    an artifact whose source is gone. A row linking that is a 404 in the one table
+    every reader starts from."""
+    (tmp_path / "plugin.yml").write_text(
+        "name: demo\nsuite:\n  describe:\n    skills:\n      gone: Retired last week.\n")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "README.md").write_text("# demo\n")
+
+    build_docs.run(tmp_path)
+
+    home = (tmp_path / "docs" / "_home.md").read_text()
+    assert "| `/demo:gone` |" in home
+    assert "(/skills/gone)" not in home
 
 
 def test_resources_from_env_splits_on_newlines_and_commas(monkeypatch):

@@ -2,8 +2,11 @@
 
   assets/* -> docs/*                                (resource paths, copied first)
   skills/<name>/SKILL.md -> docs/skills/<name>.md   (YAML frontmatter stripped)
-  rules|guides|templates/*.md -> docs/<dir>/*.md    (copied verbatim, if present)
+  skills/<name>/references/*.md -> docs/skills/<name>/references/*.md
+  rules|guides|templates|references/*.md -> docs/<dir>/*.md   (if present)
   SPEC.md -> docs/spec.md                           (copied verbatim, if present)
+  STATUS.md -> docs/status.md                       (copied verbatim, if present)
+  spec/<version>/SPEC.md -> docs/spec/<version>.md  (a versioned spec, if kept)
   plugin.yml suite: -> docs/plugin-docs.json        (live session preview)
   plugin.yml suite: -> docs/_home.md                (home page, embedded by README)
   plugin.yml docs: -> docs/index.html               (docsify bootstrap, if present)
@@ -17,6 +20,13 @@ live site with nothing failing to announce it. Resource paths close that: each
 declared path is copied into the published tree, and every local reference the
 rendered pages make is then resolved against that tree, so an unresolvable one
 fails the build instead of shipping a blank image.
+
+A rendered page's *links* need one step more than copying, because rendering
+moves the page: a skill's `../../references/x.md` was written against
+`skills/<name>/SKILL.md` and is served from `skills/<name>.md`. Each source's
+published route is recorded as it renders, and the links are then rewritten to
+those routes — so one link works in the checkout, on the forge, and on the site.
+`links.py` holds the docsify model both that and the check read from.
 """
 from __future__ import annotations
 
@@ -29,10 +39,10 @@ import urllib.parse
 
 import yaml
 
-from . import gen_plugin_docs
+from . import gen_plugin_docs, links
 from ._common import load_plugin, plugin_root
 
-COPY_DIRS = ("rules", "guides", "templates")
+COPY_DIRS = ("rules", "guides", "templates", "references")
 
 HUB = "https://chris-peterson.github.io"
 MARKETPLACE = "chris-peterson"
@@ -74,16 +84,13 @@ ARTIFACT_HEADINGS = {
 # action/workflow input default so raising it doesn't need every caller to re-pin.
 DEFAULT_RESOURCES = ("assets",)
 
-# Only file references are checked: an <img src> or a markdown image is a file
-# that has to exist in the artifact, whereas a [text](page.md) link is a docsify
-# route, which resolves by a rule this build doesn't own.
+# A file reference: an `<img src>` or a markdown image names a file that has to
+# exist in the artifact. A `[text](page.md)` link names a docsify route instead,
+# and is checked separately against the model in `links.py`.
 _REF_PATTERNS = (
     re.compile(r'\ssrc\s*=\s*["\']([^"\']+)["\']'),
     re.compile(r'!\[[^\]]*\]\(\s*([^)\s]+)'),
 )
-_SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
-_INLINE_CODE = re.compile(r"`[^`]*`")
-_FENCES = ("```", "~~~")
 
 
 def _render_index_html(spec: dict) -> str:
@@ -192,7 +199,7 @@ def _skill_order(entries: dict, curated: list[str]) -> list[str]:
 
 
 def _artifact_table(kind: str, entries: dict, curated: dict, plugin: str,
-                    sources: dict) -> list[str]:
+                    sources: dict, published: set[str]) -> list[str]:
     plural, singular = ARTIFACT_HEADINGS[kind]
     page = ARTIFACT_PAGES.get(kind)
     out = [f"## {plural}", ""]
@@ -205,17 +212,18 @@ def _artifact_table(kind: str, entries: dict, curated: dict, plugin: str,
     out += [f"| {singular} | What it does |", "|---|---|"]
     for name in (_skill_order(entries, list(curated)) if kind == "skills" else entries):
         label = f"/{plugin}:{name}" if kind == "skills" else name
-        if page:
-            cell = f"[`{label}`](/{page}/{name})"
-        elif sources.get(name):
-            cell = f"[`{label}`]({sources[name]})"
-        else:
-            cell = f"`{label}`"
+        # A row links only where there's a page to land on. `suite.describe` is a
+        # committed projection, so between releases it can still name an artifact
+        # whose source is gone — and a row linking that is a 404 in the one table
+        # every reader starts from.
+        route = f"/{page}/{name}" if page else sources.get(name)
+        landed = route and route.split("?")[0] in published
+        cell = f"[`{label}`]({route})" if landed else f"`{label}`"
         out.append(f"| {cell} | {_cell(curated.get(name) or entries[name])} |")
     return out + [""]
 
 
-def _render_home_md(spec: dict, r: pathlib.Path) -> str:
+def _render_home_md(spec: dict, r: pathlib.Path, published: set[str]) -> str:
     """The plugin's home page, projected from the same suite: block the bridge.ai
     catalog card is built from — the card's content, written as documentation.
 
@@ -263,7 +271,7 @@ def _render_home_md(spec: dict, r: pathlib.Path) -> str:
     pages = {name: f"/hooks?id={name}" for name, _, _ in _declared_hooks(r)}
     for kind in ARTIFACT_HEADINGS:
         if describe.get(kind):
-            out += _artifact_table(kind, describe[kind], curated, name, pages)
+            out += _artifact_table(kind, describe[kind], curated, name, pages, published)
 
     deps = suite.get("dependencies") or []
     if deps:
@@ -333,35 +341,19 @@ def _publish_resources(r: pathlib.Path, docs: pathlib.Path,
             shutil.copyfile(src, docs / src.name)
 
 
-def _strip_code(text: str) -> str:
-    """Drop fenced blocks and inline spans, whose contents render as literal text.
-    A guide showing the reader `![Before](before-login.png)` as an example is not
-    referencing a file, and checking it would fail a build over prose."""
-    kept, fence = [], None
-    for line in text.splitlines():
-        if fence is None:
-            marker = next((f for f in _FENCES if line.lstrip().startswith(f)), None)
-            if marker:
-                fence = marker
-                continue
-            kept.append(_INLINE_CODE.sub(" ", line))
-        elif line.lstrip().startswith(fence):
-            fence = None
-    return "\n".join(kept)
-
-
 def _local_refs(text: str) -> list[str]:
     """The file references in a page that have to resolve inside the artifact.
     A scheme (https:, data:, mailto:), a root-relative path, or a bare fragment
     resolves somewhere this build can't see, so none of those are ours to check."""
     refs = []
+    prose = "\n".join(links.mask_code_spans(line) for _, line in links.prose_lines(text))
     for pattern in _REF_PATTERNS:
-        for ref in pattern.findall(_strip_code(text)):
+        for ref in pattern.findall(prose):
             ref = ref.split("#")[0].split("?")[0].strip().strip("<>")
             # The reference is a URL; the thing on disk is a path. `my%20hero.png`
             # and `my hero.png` are the same file, and only the decoded form exists.
             ref = urllib.parse.unquote(ref)
-            if ref and not ref.startswith("/") and not _SCHEME.match(ref):
+            if ref and not ref.startswith("/") and not links.SCHEME.match(ref):
                 refs.append(ref)
     return refs
 
@@ -378,7 +370,7 @@ def _check_refs(docs: pathlib.Path) -> None:
     broken = []
     for page in sorted(docs.rglob("*.md")) + sorted(docs.rglob("*.html")):
         for ref in _local_refs(page.read_text(errors="replace")):
-            if not (docs / ref).exists():
+            if not links.exists_exact(docs, ref):
                 broken.append(f"  {page.relative_to(docs.parent).as_posix()} -> {ref}")
     if broken:
         raise SystemExit(
@@ -386,6 +378,50 @@ def _check_refs(docs: pathlib.Path) -> None:
             + "\n".join(broken)
             + "\n\nCommit them under docs/, or name their directory in the "
               "build's `resources` input.")
+
+
+def _rewrite_links(docs: pathlib.Path,
+                   rendered: list[tuple[str, pathlib.Path]]) -> None:
+    """Point each rendered page's links at the routes the site serves, now that
+    every source's destination is known. Only pages that came from a source are
+    touched: a hand-written page under docs/ was written against the site and
+    already says `/skills/thing`."""
+    routes = {source: links.route_of(docs, page) for source, page in rendered}
+    for source, page in rendered:
+        text = page.read_text()
+        rewritten = links.rewrite(text, source, routes)
+        if rewritten != text:
+            page.write_text(rewritten)
+
+
+def _check_links(docs: pathlib.Path) -> None:
+    """Fail on a link that 404s on the live site, or lands on a page with no such
+    anchor. A dead link fails silently by construction — docsify renders its own
+    404 page inside a page that loaded fine, and the deploy is green — so this
+    check is the only thing that reports one before a reader does."""
+    broken, dead_anchors = [], []
+    for page in sorted(docs.rglob("*.md")):
+        where = page.relative_to(docs.parent).as_posix()
+        text = page.read_text(errors="replace")
+        for href in links.local_links(text):
+            target = links.page_for(docs, href)
+            if target is None:
+                broken.append(f"  {where} -> {href}")
+                continue
+            _, fragment = links.split_fragment(href)
+            if fragment and fragment not in links.anchors(target.read_text(errors="replace")):
+                dead_anchors.append(f"  {where} -> {href}")
+    if not broken and not dead_anchors:
+        return
+    report = ["shipyard: docs links that 404 on the published site:"]
+    if broken:
+        report += ["", "No page at that route:", *broken]
+    if dead_anchors:
+        report += ["", "Page resolves, but carries no such anchor:", *dead_anchors]
+    report += ["", "A link written for the checkout is rewritten to its published "
+               "route automatically — one that isn't names a page this build "
+               "doesn't publish. Publish it, or point the link at a page that is."]
+    raise SystemExit("\n".join(report))
 
 
 def run(root: str | pathlib.Path | None = None,
@@ -398,27 +434,49 @@ def run(root: str | pathlib.Path | None = None,
     # of them would be a build whose output depends on copy order.
     _publish_resources(r, docs, resources)
 
-    skills = sorted((r / "skills").glob("*/SKILL.md"))
-    if skills:
-        (docs / "skills").mkdir(parents=True, exist_ok=True)
-        for s in skills:
-            (docs / "skills" / f"{s.parent.name}.md").write_text(_strip_frontmatter(s.read_text()))
+    # Each rendered page paired with the source it came from, so the link rewrite
+    # below can resolve that page's links the way a reader of the source does.
+    rendered: list[tuple[str, pathlib.Path]] = []
+
+    def render(source: pathlib.Path, dest: pathlib.Path, text: str | None = None) -> None:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        # A leftover page differing only in case (an earlier build's docs/SPEC.md)
+        # is the file a write to docs/spec.md lands in on macOS, so the tree ends
+        # up named one way locally and another in CI — and the routes follow. The
+        # published name is this build's to decide, so the variant goes.
+        for entry in dest.parent.iterdir():
+            if entry.name != dest.name and entry.name.lower() == dest.name.lower():
+                entry.unlink()
+        dest.write_text(source.read_text() if text is None else text)
+        rendered.append((source.relative_to(r).as_posix(), dest))
+
+    for s in sorted((r / "skills").glob("*/SKILL.md")):
+        render(s, docs / "skills" / f"{s.parent.name}.md", _strip_frontmatter(s.read_text()))
+        # A skill's own references travel with it. They sit a level deeper than the
+        # root-level dirs below, and keeping that shape is what lets the skill's
+        # `references/x.md` link resolve on the site as well as in the checkout.
+        for f in sorted((s.parent / "references").glob("*.md")):
+            render(f, docs / "skills" / s.parent.name / "references" / f.name)
 
     for name in COPY_DIRS:
         src = r / name
-        mds = sorted(src.glob("*.md")) if src.is_dir() else []
-        if mds:
-            (docs / name).mkdir(parents=True, exist_ok=True)
-            for f in mds:
-                shutil.copyfile(f, docs / name / f.name)
+        for f in sorted(src.glob("*.md")) if src.is_dir() else []:
+            render(f, docs / name / f.name)
 
-    # the plugin's spec, if it keeps one, so the docs site can serve it.
-    # Output is lowercase docs/spec.md so the docsify route is /spec (the source
-    # stays SPEC.md — the canonical name the ambient rules reference).
-    spec = r / "SPEC.md"
-    if spec.is_file():
-        docs.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(spec, docs / "spec.md")
+    # the plugin's spec and ledger, if it keeps them, so the docs site can serve
+    # them. Output is lowercased so the routes are /spec and /status (the sources
+    # stay SPEC.md and STATUS.md — the canonical names the ambient rules use).
+    for name, page in (("SPEC.md", "spec.md"), ("STATUS.md", "status.md")):
+        source = r / name
+        if source.is_file():
+            render(source, docs / page)
+
+    # A versioned spec (`spec/v1/SPEC.md`, `spec/vnext/SPEC.md`) is served at
+    # /spec/<version>. Publishing it is what lets a ledger cite the contract it
+    # actually tracks: tack's STATUS.md links spec/v1/SPEC.md, which is right in
+    # the checkout and reaches nothing on a site that only carries the root spec.
+    for source in sorted(r.glob("spec/*/SPEC.md")):
+        render(source, docs / "spec" / f"{source.parent.name}.md")
 
     # docsify bootstrap, projected from plugin.yml. Opt-in: a plugin that hasn't
     # declared a docs: block keeps its hand-written index.html untouched.
@@ -427,18 +485,23 @@ def run(root: str | pathlib.Path | None = None,
         docs.mkdir(parents=True, exist_ok=True)
         (docs / "index.html").write_text(_render_index_html(plugin))
 
+    # The page the home page's hook rows point at. Rendered before the home page,
+    # which links only the routes that exist by the time it's written.
+    if _declared_hooks(r):
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / "hooks.md").write_text(_render_hooks_md(r))
+
     # The home page, for a README that embeds it. Always rendered when the
     # source is there — like every other page under docs/, it costs nothing
     # until something links to it.
     if plugin.get("suite"):
         docs.mkdir(parents=True, exist_ok=True)
-        (docs / "_home.md").write_text(_render_home_md(plugin, r))
+        published = {links.route_of(docs, p) for p in docs.rglob("*.md")}
+        (docs / "_home.md").write_text(_render_home_md(plugin, r, published))
 
-    # The page the home page's hook rows point at.
-    if _declared_hooks(r):
-        docs.mkdir(parents=True, exist_ok=True)
-        (docs / "hooks.md").write_text(_render_hooks_md(r))
+    _rewrite_links(docs, rendered)
 
     rc = gen_plugin_docs.run(root)
     _check_refs(docs)
+    _check_links(docs)
     return rc
