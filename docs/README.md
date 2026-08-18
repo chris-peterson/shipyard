@@ -35,7 +35,8 @@ Every command runs against a target plugin repo (`--root <path>`, default: the c
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` (+ the docsify `index.html`, from `plugin.yml` `docs:`, and the home page `_home.md`, from `suite:`) |
 | `shipyard changelog` | a release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
-| `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (the CI gate) |
+| `shipyard gen-cli-manifest` | the CLI declared in `plugin.yml` `cli:` → its committed grammar manifest |
+| `shipyard generate` | run every generator; CI runs this and commits the result to the branch |
 
 ### Aggregating plugins
 
@@ -52,12 +53,11 @@ A marketplace or catalog site is the other kind of target. It declares a `plugin
 
 ## How a plugin uses it
 
-Two thin touch-points in each plugin repo — no packaged install:
+One touch-point in each plugin repo — no packaged install, and nothing to run locally:
 
-- **`scripts/shipyard`** — a wrapper that clones shipyard to a cache, fast-forwards it, and runs `python3 -m shipyard` in place. `just` and the pre-commit hook drive it.
-- **`.github/workflows/`** — `release.yml`, `deploy-docs.yml`, and `preview.yml` are one-line callers of shipyard's [reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows).
+- **`.github/workflows/`** — `release.yml` and `deploy-docs.yml` are one-line callers of shipyard's [reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows), and `project.yml` runs the plugin's own build before shipyard's [`project` action](how-it-works.md#the-projection-job), which projects every artifact and pushes the result to the branch.
 
-Both are pinned to the same ref: **`@main`** while shipyard is pre-1.0 (float to latest), moving to semver tags at v1.
+All of them pin the same ref, **`@v1`**.
 
 Read on: **[How it works](how-it-works.md)** for the projection and CI flows, **[Cutting a release](releasing.md)** for the contract every harness that publishes one has to follow, or the **[before/after walk-through](example.md)** of converting a real plugin.
 

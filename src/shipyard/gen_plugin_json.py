@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import pathlib
 
-from ._common import diff, load_plugin, plugin_root
+from ._common import load_plugin, plugin_root
 
 # plugin.json carries only the packaging fields, in this order. The rest of
 # plugin.yml (marketplace:, suite:) projects into other targets, not here.
@@ -45,15 +45,6 @@ def build(root: str | pathlib.Path | None = None) -> str:
 
 def _target(root: str | pathlib.Path | None = None) -> pathlib.Path:
     return plugin_root(root) / ".claude-plugin" / "plugin.json"
-
-
-def preview(root: str | pathlib.Path | None = None) -> str:
-    """The diff the next `generate` would apply. Calling build() first surfaces
-    any bad/missing input in plugin.yml as a hard error."""
-    generated = build(root)
-    target = _target(root)
-    current = target.read_text() if target.exists() else ""
-    return diff(target, current, generated, root)
 
 
 def run(root: str | pathlib.Path | None = None) -> int:

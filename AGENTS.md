@@ -20,18 +20,18 @@ it's the mistake to avoid re-introducing.
 pip install -e ".[dev]"
 pytest
 
-python3 -m shipyard generate --root ../some-plugin --dry-run
+python3 -m shipyard generate --root ../some-plugin
 ```
 
-`--dry-run` is worth running against a real plugin checkout before pushing a
-generator change: it prints the diff the next write would apply, without touching
-the tree.
+Running `generate` against a real plugin checkout is worth doing before pushing a
+generator change — `git diff` in that checkout then shows exactly what CI will
+commit. Discard it afterwards; the projection belongs to that repo's own CI.
 
 ## Layout
 
 ```text
 src/shipyard/cli.py       the entry point and subcommand table
-src/shipyard/_common.py   root resolution, plugin.yml loading, the diff helper
+src/shipyard/_common.py   root resolution and plugin.yml loading
 src/shipyard/gen_*.py     one module per projection
 src/shipyard/build_docs.py  renders skills/rules/guides/templates/references/SPEC.md/STATUS.md into docs/
 src/shipyard/links.py     docsify's routing and heading-slug rules, for the link rewrite and the link check
@@ -39,6 +39,7 @@ tests/                    pytest suites
 docs/                     shipyard's own docsify site, published by pages.yml
 docs/cli-manifest.v1.json the CLI manifest's schema — published, so a consumer
                           can validate one without guessing at its shape
+actions/                  the composite actions plugins call from their own jobs
 .github/workflows/        the reusable workflows plugins call, plus shipyard's own CI
 ```
 
@@ -59,30 +60,33 @@ its declared source, breaks the split the whole suite depends on.
 invokes the CLI declared in `plugin.yml`'s `cli:` block and records the grammar
 its help documents. Two consequences shape the code. The manifest asserts what
 the CLI documents rather than what it accepts, so a parser must never infer a
-flag that wasn't printed. And it's the one artifact whose drift is *gated*
-(`--check`) rather than surfaced, because a CLI's grammar is a public contract
-and a rename has to appear in the diff of the change that made it — which is
-also why it is left out of `generate --dry-run`, where a preview job has no
-toolchain to build the CLI it would have to run.
+flag that wasn't printed. And it's the one that needs the caller's own
+toolchain, which is why the projection ships as an action in the caller's job
+rather than a workflow that owns it: a CLI has to be built before it can be run.
 
-**The reusable workflows are a public API.** `.github/workflows/{deploy-docs,
-preview,release}.yml` are called by every plugin via `uses:
-chris-peterson/shipyard/.github/workflows/<name>.yml@v1`. Changing an input,
-output, or permission changes their CI without them editing anything. The `v1` tag
-is what they pin, so a breaking change needs a new tag rather than a moved one.
-(`pages.yml` and `test.yml` are shipyard's own CI, not part of that surface.)
+**What plugins call is a public API.** `.github/workflows/{deploy-docs,
+release}.yml` and `actions/{build-docs,project}` are called by every plugin via
+`uses: chris-peterson/shipyard/<path>@v1`. Changing an input, output, or
+permission changes their CI without them editing anything. (`pages.yml` and
+`test.yml` are shipyard's own CI, not part of that surface.)
+
+`v1` is a tag moved by hand, so a breaking change is coordinated rather than
+versioned: every consumer is in one owner's hands, so the sweep converts all of
+them and then moves the tag, with no release in between. That trade is the reason
+there is one tag to reason about instead of a version per consumer — and the
+reason a breaking change is a planned sweep, never a quiet edit.
 
 ## Conventions
 
-- **Preview never fails on drift**, the CLI manifest above excepted. Between
-  releases the committed artifacts are *expected* to trail their source — the release workflow regenerates and commits
-  them back. `generate --dry-run` fails only when the source itself is malformed
-  or missing required input; otherwise it posts the pending diff to the job
-  summary so a reviewer sees what release will apply. Making preview gate on
-  drift would fail every ordinary PR.
+- **Every generated artifact has exactly one writer, and it is CI.**
+  `actions/project` runs the projectors on every push and commits the result to
+  the branch, so a committed artifact matches its source at all times and the
+  diff a reviewer approves is the change that lands. Nothing here gates on drift:
+  a gate is what you build when the writer is a person with a local tool, and its
+  failure message can only ever be *"run `generate` and commit"*.
 - **`generate` is the single projection verb.** The per-artifact `gen-*` commands
-  exist for targeted use; anything that should happen at release happens under
-  `generate`, so there is one thing to call and one thing to keep in sync.
+  exist for targeted use; anything CI should project happens under `generate`, so
+  there is one thing to call and one thing to keep in sync.
 - **A new CLI engine is a parser, not a special case.** `gen-cli-manifest`'s
   engines are keyed by name in `ENGINES` and all target the same manifest shape,
   so adding one (argparse, System.CommandLine) means writing a parser to that
@@ -93,9 +97,10 @@ is what they pin, so a breaking change needs a new tag rather than a moved one.
   a missing `plugin.yml` rather than projecting from an empty dict — a generator
   that quietly writes a stub artifact produces a plugin that looks built and
   isn't.
-- **Python 3.10+, `pyyaml` the only runtime dependency**, `pytest` dev-only. The
-  reusable workflows `pip install pyyaml` and run the CLI as `python3 -m shipyard`
-  from a checkout, so nothing may depend on shipyard being pip-installed.
+- **Python 3.10+, `pyyaml` the only runtime dependency**, `pytest` and
+  `jsonschema` dev-only. The workflows and actions install `pyyaml` and run the
+  CLI as `python3 -m shipyard` from a checkout, so nothing may depend on shipyard
+  being pip-installed.
 - **Hook descriptions come from `hooks.yml`**, not from a comment convention in
   the hook scripts. `gen-describe` reads them straight from the declaration.
 
@@ -103,9 +108,9 @@ is what they pin, so a breaking change needs a new tag rather than a moved one.
 
 - **Target plugin repo** — the checkout shipyard is operating on, selected by
   `--root` or the cwd. Never shipyard itself.
-- **Projection** — a generated, committed artifact derived from a declared
-  source. Stale between releases by design.
-- **Preview** — `generate --dry-run`: validate the source, diff the pending
-  projection, write nothing, and don't fail on drift.
-- **Wrapper** — the `scripts/shipyard` shim a plugin repo carries to fetch and
-  invoke the CLI, pinned to the same ref as its workflow callers.
+- **Projection** — a generated artifact derived from a declared source. Committed
+  when a consumer reads it out of the repo (`plugin.json`, `hooks.json`,
+  `marketplace.json`, a CLI manifest, compiled output a plugin ships); built at
+  deploy otherwise (rendered `docs/`, the marketplace's data files).
+- **Projection job** — the caller's job that runs its own build and then
+  `actions/project`, which projects and pushes the result to the branch.

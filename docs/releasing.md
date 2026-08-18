@@ -9,7 +9,7 @@ This page is the contract for whoever drives that, because it is rarely the same
 Publishing the release hands these to CI. Doing any of them by hand lands a second, conflicting commit:
 
 - **The version.** It comes from the tag (`v1.2.0` → `1.2.0`). CI writes it into `plugin.yml` and regenerates `.claude-plugin/plugin.json` — don't bump `plugin.yml` yourself.
-- **The generated artifacts.** `plugin.json`, `hooks.json`, `suite.describe`, and `docs/` are resynced from source at release. Committed artifacts trailing their source between releases is expected; the preview gate reports that gap rather than failing on it.
+- **The generated artifacts.** `plugin.json`, `hooks.json`, `suite.describe`, and `docs/` are resynced from source at release — a backstop, not the writer. The projection job already committed them when the source changed, so a release ordinarily finds nothing to resync.
 - **`CHANGELOG.md`.** The release body is written into a `## <VERSION>` section. Don't hand-write that section — see below for where notes *do* get written by hand.
 - **The commit on `main`** and the marketplace rebuild.
 

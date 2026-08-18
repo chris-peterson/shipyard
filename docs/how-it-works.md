@@ -39,7 +39,7 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
   Two things follow from the manifest being a recording of help output. It asserts what the CLI *documents*, which is not the same claim as what it accepts — a flag absent from `--help` is absent here. And it's never hand-edited: each run rewrites it, and a CLI whose help the engine can't parse fails the generator instead of writing a half-manifest, which would read exactly like a CLI that dropped half its commands.
 
-  **This is the one artifact whose drift is gated.** Everywhere else the committed copy is expected to trail its source between releases; a grammar change instead has to be visible in the diff of the change that made it, so `gen-cli-manifest --check` fails when the two disagree and names the forms that moved:
+  **This is the projection that needs the caller's own toolchain.** Every other one reads files the checkout already has; this one runs the CLI, which has to be built first. That's why the projection ships as an action you put in your own job after your build step, rather than a workflow that owns the job. What lands in the diff is the grammar itself:
 
   ```text
   - tack deliverable rm <slug> <tack-id> [--to-link]
@@ -109,35 +109,47 @@ The artifact log is the one derived input: a rolling record of each plugin's nam
 
 A plugin may declare a dependency on something the roster doesn't carry — an optional backend the marketplace doesn't ship. Those edges survive into `deps.json` while `nodes` stays the roster; that gap is what lets the doc site's graph draw an outside plugin differently from a catalog one.
 
-## The wrapper: fetch-and-run, no install
+## The projection job
 
-`scripts/shipyard` in each plugin keeps a cached checkout of shipyard and runs it in place — no package to publish or pin a version of the interpreter against.
+Every generated artifact has exactly one writer, and it is CI. A plugin's job runs its own build, then calls shipyard's `project` action, which projects the sources into their artifacts and pushes the result to the branch. The diff a reviewer approves is the change that lands, and a committed artifact matches its source at all times rather than only after a release.
+
+```yaml
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The default checkout leaves a merge commit in detached HEAD, and
+          # there is no branch there to push a projection to.
+          ref: ${{ github.head_ref }}
+      - run: npm ci && npm run build          # whatever your CLI needs, first
+      - uses: chris-peterson/shipyard/actions/project@v1
+```
+
+An action rather than a reusable workflow, because the caller's own job has to run first: a CLI manifest needs a built CLI to interrogate, and compiled output has to compile before it can be projected. A reusable workflow owns the whole job, so it could only take that build as a string to interpolate — awkward, and a script-injection surface.
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
 sequenceDiagram
-  participant J as just / pre-commit
-  participant W as scripts/shipyard
-  participant C as ~/.cache/shipyard
-  J->>W: shipyard generate --dry-run
-  W->>C: clone or fast-forward @main
-  W->>W: PYTHONPATH=cache/src python3 -m shipyard generate --dry-run
-  W-->>J: exit 0 (+ pending-projection diff) / non-zero (malformed source)
+  actor You
+  participant B as branch
+  participant A as project action
+  You->>B: push a hooks.yml edit
+  B->>A: run the projection job
+  A->>A: generate: hooks.json, plugin.json, suite.describe, docs
+  A->>B: commit + push the projection
+  B->>A: the push reruns the job
+  A-->>B: nothing left to project
 ```
 
-## The preview gate
+The job terminates on its own: its push triggers a rerun that finds nothing to project and pushes nothing, so there is one extra run per drifted commit and no `paths-ignore` bookkeeping. An author who pushed while it ran gets a rejected fast-forward rather than a corrupted branch — no force, no lease — and their next push carries a run that redoes the projection.
 
-A plugin's CI calls shipyard's reusable `preview` workflow on every push and pull request. It fetches shipyard, then dry-runs the projection: it validates that `plugin.yml` and `hooks.yml` are well-formed enough to project, and posts a diff of what the next release will apply to the committed artifacts. It fails only when the source itself is malformed. The committed artifacts trailing their source is expected between releases — the release workflow regenerates and commits them back — so that gap is surfaced, not gated.
+**What gets committed** has one test: commit a projection if, and only if, a consumer reads it out of the repo. `plugin.json`, `hooks.json`, `marketplace.json`, a CLI manifest and compiled output a plugin ships, yes — the clone is the delivery mechanism, and Claude Code runs no install step. Rendered `docs/` and the marketplace's data files, no; both are git-ignored and built at deploy. The action stages every non-ignored change, so a build output you don't want committed belongs in `.gitignore`.
 
-The same job then checks the CLI grammar, which *is* gated (see `gen-cli-manifest` above), and no-ops for a plugin that declares no `cli:`. The dry-run above deliberately leaves the manifest out: every other projection reads files the checkout already has, while this one runs the CLI, and a preview job has no toolchain to build one. A plugin whose `invoke` points at a build output passes the command that produces it:
-
-```yaml
-jobs:
-  preview:
-    uses: chris-peterson/shipyard/.github/workflows/preview.yml@v1
-    with:
-      cli-build: npm ci && npm run build
-```
+**There is no drift gate, and nothing runs shipyard on a laptop.** A gate is what you build when the writer is a person with a local tool: CI can't produce the artifact, so it checks whether you remembered, and its failure message can only ever be *"run `generate` and commit"*.
 
 ## The release flow
 

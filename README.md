@@ -21,7 +21,8 @@ shipyard *projects* those into the generated, committed artifacts:
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
 | `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md`,`assets/` → `docs/` (+ plugin-docs.json, `docs/index.html` from `plugin.yml` `docs:`, and `docs/_home.md` from `suite:`) |
 | `shipyard changelog` | release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
-| `shipyard generate` | run every generator (write); `--dry-run` validates source + diffs pending output without writing (CI gate) |
+| `shipyard gen-cli-manifest` | the CLI declared in `plugin.yml` `cli:` → its committed grammar manifest |
+| `shipyard generate` | run every generator; CI runs this and commits the result to the branch |
 
 Every command takes `--root <repo>` (default: the current directory), so
 shipyard runs against a checked-out plugin, not itself.
@@ -65,10 +66,11 @@ aggregator's own sync step produces, which `roster` is what bootstraps.
 ## Using it from a plugin
 
 A plugin's `.github/workflows/` are thin callers of shipyard's reusable
-workflows, and its `scripts/shipyard` wrapper fetches the CLI — both pinned to
-the `v1` tag. See a converted plugin (e.g.
-[anchor](https://github.com/chris-peterson/anchor)) for the wrapper and the
-workflow callers.
+workflows and composite actions, pinned to the `v1` tag. Nothing runs shipyard
+locally: the `project` action projects every artifact on each push and commits
+the result to the branch, so a committed artifact matches its source at all
+times. See a converted plugin (e.g.
+[anchor](https://github.com/chris-peterson/anchor)) for the callers.
 
 Only `docs/` is published, so art a page references from elsewhere in the repo
 404s on the live site. `build-docs` copies the plugin's **resource paths** into
