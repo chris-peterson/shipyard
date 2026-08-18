@@ -142,6 +142,7 @@ name: demo
 version: 2.1.0
 repository: https://github.com/chris-peterson/demo
 suite:
+  cli: true
   gloss: one line about demo
   pitch: the punchy one
   cmds:
@@ -203,6 +204,17 @@ def test_the_home_page_leads_with_the_version_and_the_pitch(home):
 def test_the_version_tag_goes_to_the_published_release(home):
     assert ('<a class="ph-tag" href="https://github.com/chris-peterson/demo/releases/latest">'
             "v2.1.0</a>") in home
+
+
+def test_a_cli_plugin_is_marked_ahead_of_its_version(home):
+    """Same order as the catalog card, so the two surfaces read alike."""
+    assert '<span class="ph-tag ph-cli">cli</span><a class="ph-tag"' in home
+
+
+def test_a_plugin_that_ships_no_cli_carries_no_mark(tmp_path):
+    home = _home_plugin(tmp_path, HOME_YML.replace("  cli: true\n", ""))
+
+    assert '<span class="ph-tag ph-cli">cli</span>' not in home
 
 
 def test_a_repo_with_no_derivable_releases_url_states_the_version_plainly(tmp_path):
