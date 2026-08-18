@@ -7,6 +7,7 @@
   SPEC.md -> docs/spec.md                           (copied verbatim, if present)
   STATUS.md -> docs/status.md                       (copied verbatim, if present)
   spec/<version>/SPEC.md -> docs/spec/<version>.md  (a versioned spec, if kept)
+  the committed CLI manifest -> docs/cli.md         (command reference, if present)
   plugin.yml suite: -> docs/plugin-docs.json        (live session preview)
   plugin.yml suite: -> docs/_home.md                (home page, embedded by README)
   plugin.yml docs: -> docs/index.html               (docsify bootstrap, if present)
@@ -39,7 +40,7 @@ import urllib.parse
 
 import yaml
 
-from . import gen_plugin_docs, links
+from . import gen_cli_manifest, gen_plugin_docs, links
 from ._common import load_plugin, plugin_root
 
 COPY_DIRS = ("rules", "guides", "templates", "references")
@@ -487,6 +488,12 @@ def run(root: str | pathlib.Path | None = None,
     # the checkout and reaches nothing on a site that only carries the root spec.
     for source in sorted(r.glob("spec/*/SPEC.md")):
         render(source, docs / "spec" / f"{source.parent.name}.md")
+
+    # the CLI's command reference, so the docs site stops depending on a
+    # hand-maintained command table that drifts from the binary.
+    if page := gen_cli_manifest.docs_page(root):
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / gen_cli_manifest.DOCS_PAGE).write_text(page)
 
     # docsify bootstrap, projected from plugin.yml. Opt-in: a plugin that hasn't
     # declared a docs: block keeps its hand-written index.html untouched.

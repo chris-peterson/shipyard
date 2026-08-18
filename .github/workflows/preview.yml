@@ -10,6 +10,16 @@ name: Preview (shipyard)
 
 on:
   workflow_call:
+    inputs:
+      cli-build:
+        description: >-
+          Command that builds the CLI declared in plugin.yml's `cli:` block,
+          run before its grammar is checked. Only needed when `invoke` points at
+          a build output (`node dist/cli.js`); a CLI run straight from source
+          needs nothing here.
+        type: string
+        required: false
+        default: ''
 
 jobs:
   preview:
@@ -33,3 +43,14 @@ jobs:
       - run: pip install pyyaml
       - name: Validate source and preview pending projection
         run: python3 -m shipyard generate --dry-run
+
+      - name: Build the declared CLI
+        if: inputs.cli-build != ''
+        run: ${{ inputs.cli-build }}
+
+      # Unlike the projection above, this one does gate. The committed artifacts
+      # are expected to trail their source between releases, but a CLI's grammar
+      # is its public contract: a renamed flag has to be visible in the diff of
+      # the change that renamed it. No-ops for a plugin that declares no `cli:`.
+      - name: Check the CLI's grammar against its committed manifest
+        run: python3 -m shipyard gen-cli-manifest --check
