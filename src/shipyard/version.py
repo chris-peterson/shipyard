@@ -71,3 +71,26 @@ def write_pyproject(new: str, root: str | pathlib.Path | None = None) -> None:
     if count != 1:
         raise SystemExit(f"shipyard: {path} has no `version = \"X.Y.Z\"` line to bump.")
     path.write_text(text)
+
+
+# `version: 1.2.3` in plugin.yml. Same one-line rewrite as pyproject, and for the
+# same reason: plugin.yml is hand-authored around this key.
+_PLUGIN_VERSION = re.compile(r"^(version:[ \t]*)(\d+\.\d+\.\d+)[ \t]*$", re.M)
+
+
+def read_plugin_yml(root: str | pathlib.Path | None = None) -> str:
+    path = pathlib.Path(root or ".") / "plugin.yml"
+    m = _PLUGIN_VERSION.search(path.read_text())
+    if not m:
+        raise SystemExit(
+            f"shipyard: {path} has no `version: X.Y.Z` line. The release derives "
+            "the next version from it.")
+    return m.group(2)
+
+
+def write_plugin_yml(new: str, root: str | pathlib.Path | None = None) -> None:
+    path = pathlib.Path(root or ".") / "plugin.yml"
+    text, count = _PLUGIN_VERSION.subn(rf"\g<1>{new}", path.read_text(), count=1)
+    if count != 1:
+        raise SystemExit(f"shipyard: {path} has no `version: X.Y.Z` line to bump.")
+    path.write_text(text)

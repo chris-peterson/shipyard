@@ -20,7 +20,7 @@ shipyard *projects* those into the generated, committed artifacts:
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
 | `shipyard build-docs` | `skills/`,`rules/`,`guides/`,`templates/`,`SPEC.md`,`assets/` → `docs/` (+ plugin-docs.json, `docs/index.html` from `plugin.yml` `docs:`, and `docs/_home.md` from `suite:`) |
-| `shipyard changelog` | release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
+| `shipyard release --bump <level>` | `CHANGELOG.md`'s `## Unreleased` + the recorded version → the next version, the retitled section, and the notes to publish |
 | `shipyard gen-cli-manifest` | the CLI declared in `plugin.yml` `cli:` → its committed grammar manifest |
 | `shipyard generate` | run every generator; CI runs this and commits the result to the branch |
 

@@ -34,7 +34,7 @@ Every command runs against a target plugin repo (`--root <path>`, default: the c
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` (+ the docsify `index.html`, from `plugin.yml` `docs:`, and the home page `_home.md`, from `suite:`) |
-| `shipyard changelog` | a release body → `CHANGELOG.md` (retitling a staged `## Unreleased` section in place) |
+| `shipyard release --bump <level>` | `CHANGELOG.md`'s `## Unreleased` + the recorded version → the next version, the retitled section, and the notes to publish |
 | `shipyard gen-cli-manifest` | the CLI declared in `plugin.yml` `cli:` → its committed grammar manifest |
 | `shipyard generate` | run every generator; CI runs this and commits the result to the branch |
 

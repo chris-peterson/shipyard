@@ -53,6 +53,8 @@ docs/cli-manifest.v1.json the CLI manifest's schema — published, so a consumer
                           can validate one without guessing at its shape
 actions/                  the composite actions plugins call from their own jobs
 .github/workflows/        the reusable workflows plugins call, plus shipyard's own CI
+                          (cut-release.yml releases shipyard the way release.yml
+                           releases a plugin, so the flow is dogfooded here first)
 ```
 
 ## The two contracts

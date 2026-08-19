@@ -1,21 +1,12 @@
 # Cutting a release
 
-Publishing a GitHub Release on a plugin is the whole trigger — the tag carries the version, the release body carries the notes, and shipyard's reusable workflow does everything downstream. See [the release flow](how-it-works.md#the-release-flow) for the sequence.
+Releasing is one `workflow_dispatch` whose only input is the bump level. CI derives the version, retitles the notes you already wrote, commits, tags that commit, and publishes. See [the release flow](how-it-works.md#the-release-flow) for the sequence.
 
-This page is the contract for whoever drives that, because it is rarely the same *whoever* twice: a maintainer from the terminal one week, an agent from a different harness the next. Anything a harness would otherwise have to remember on its own lives here.
+This page is the contract for whoever drives it, because it is rarely the same *whoever* twice: a maintainer from the terminal one week, an agent from a different harness the next. Anything a harness would otherwise have to remember on its own lives here.
 
-## What the workflow owns
+## Notes are written as work lands, not at release time
 
-Publishing the release hands these to CI. Doing any of them by hand lands a second, conflicting commit:
-
-- **The version.** It comes from the tag (`v1.2.0` → `1.2.0`). CI writes it into `plugin.yml` and regenerates `.claude-plugin/plugin.json` — don't bump `plugin.yml` yourself.
-- **The generated artifacts.** `plugin.json`, `hooks.json`, `suite.describe`, and `docs/` are resynced from source at release — a backstop, not the writer. The projection job already committed them when the source changed, so a release ordinarily finds nothing to resync.
-- **`CHANGELOG.md`.** The release body is written into a `## <VERSION>` section. Don't hand-write that section — see below for where notes *do* get written by hand.
-- **The commit on `main`** and the marketplace rebuild.
-
-## Staging notes under `## Unreleased`
-
-Notes are best written while the change is fresh, which is during the sprint, not at the moment someone cuts a release. So keep a leading `## Unreleased` section in `CHANGELOG.md` and write into it as work lands:
+`CHANGELOG.md` is the source. Keep a leading `## Unreleased` section and write into it in the same change request as the work it describes:
 
 ```markdown
 # Changelog
@@ -29,21 +20,29 @@ Notes are best written while the change is fresh, which is during the sprint, no
 - …
 ```
 
-At release, **the release body should be that section's content.** `shipyard changelog` then *retitles* the staged section to `## <VERSION>` in place rather than adding a second copy above it — which is what used to leave the same notes in the file twice, with a stale `## Unreleased` heading below them.
+Two things follow. The notes get **reviewed**, in the diff next to the code they describe, instead of being composed from memory by whoever happens to cut the release. And the release body becomes a projection of this file rather than its source, so the two cannot disagree.
 
-Two ways it can go otherwise, both reported on stderr in the job log:
+**No section, no release.** A missing or empty `## Unreleased` fails the run. That is deliberate: a tag naming a version whose changelog entry says nothing cannot be fixed afterwards without moving the tag.
 
-| Situation | What lands |
-|---|---|
-| Release body differs from the staged notes | The release body wins — it's what was published and what readers saw. The staged text is echoed to the log. |
-| Release body is empty | The staged notes are kept as the section. |
+## Driving it
 
-Re-publishing the same release is a no-op: an existing `## <VERSION>` section leaves the file untouched.
+1. Check that `## Unreleased` says what you want the release to say. That text *is* the release body.
+2. Run the repo's release workflow, choosing `major`, `minor`, or `patch`.
+3. Nothing else. Don't bump the version, don't retitle the section, don't create the tag or the release.
 
-## Checklist for the harness driving it
+The bump level rather than a literal version removes the class of typo where the tag and the version disagree, and it is the input you can supply without looking anything up.
 
-1. Read the leading `## Unreleased` section of `CHANGELOG.md`; it is the draft of the release notes.
-2. Choose the semver bump from what's in it, and tag `v<major>.<minor>.<patch>`.
-3. Publish the release with that section's content as the body — don't recompose the notes from the commit log, or the two will disagree and the staged wording is discarded.
-4. Leave `plugin.yml`, `CHANGELOG.md`, and the generated artifacts alone. CI commits them.
-5. After CI pushes, the next contributor opens a fresh `## Unreleased` section when they have something to note.
+## What the workflow owns
+
+Doing any of these by hand lands a second, conflicting commit — or a tag that disagrees with what is in it:
+
+- **The version.** Derived by bumping what `plugin.yml` already says.
+- **The `## <version>` heading.** `shipyard release` retitles your staged section in place. Nothing else writes a heading, which is why a duplicated one is now impossible rather than something the parser tolerates.
+- **The generated artifacts**, resynced as a backstop. The projection job already committed them when the source changed, so a release ordinarily finds nothing to resync.
+- **The commit, then the tag on it,** in that order. The tag names a commit that already carries its own version — so `plugin.json` at the tag reports the version the tag names.
+- **The GitHub Release**, published with the changelog section as its body.
+- **The marketplace rebuild.**
+
+## After it runs
+
+Open a fresh `## Unreleased` section when you next have something to note. Don't leave an empty one behind: an empty section and a missing one both fail the next release, and the empty one reads like it was meant to be filled.

@@ -1,11 +1,21 @@
 name: Release (shipyard)
 
-# Reusable release workflow. A plugin calls it from its own release.yml on
-# `release: published`; the release tag (v<version>) is the version. This
-# resyncs generated artifacts from source, writes the version into plugin.yml on
-# main, regenerates plugin.json, proxies the release notes into CHANGELOG.md,
-# pushes, and dispatches the marketplace rebuild. The plugin name is taken from
-# the caller's repository, so nothing here is plugin-specific.
+# Reusable release workflow. A plugin calls it from its own release.yml under a
+# `workflow_dispatch` whose only input is the bump level. This derives the next
+# version from plugin.yml, retitles CHANGELOG.md's `## Unreleased` section to it,
+# regenerates the artifacts, commits, **then** tags that commit, publishes the
+# release from the section it just wrote, and dispatches the marketplace rebuild.
+# The plugin name comes from the caller's repository, so nothing here is
+# plugin-specific.
+#
+# The order is the point. The trigger used to be `release: published`, so a human
+# cut the tag before this ran and the bump commit always landed *after* the tag
+# naming it — plugin.json at the tag reported the previous version. Deriving the
+# version here means the tag is cut from a commit that already carries it.
+#
+# Notes come from CHANGELOG.md, written in the CR alongside the change they
+# describe. Nothing but shipyard supplies a heading, so the duplicate-heading
+# class the release body used to produce is unreachable rather than tolerated.
 #
 # The caller must pass `secrets: inherit` so MARKETPLACE_DISPATCH_TOKEN — a token
 # allowed to repository_dispatch to chris-peterson/claude-marketplace — reaches
@@ -13,6 +23,11 @@ name: Release (shipyard)
 
 on:
   workflow_call:
+    inputs:
+      bump:
+        description: How far to advance the version (major, minor, or patch).
+        required: true
+        type: string
     secrets:
       MARKETPLACE_DISPATCH_TOKEN:
         required: true
@@ -27,17 +42,6 @@ jobs:
       # shipyard is fetched by the checkout below and run in place — no install.
       PYTHONPATH: .shipyard/src
     steps:
-      - name: Resolve version from release tag
-        id: ver
-        run: |
-          tag="${{ github.event.release.tag_name }}"
-          version="${tag#v}"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tag '$tag' is not a vMAJOR.MINOR.PATCH version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Check out the plugin (main)
         uses: actions/checkout@v6
         with:
@@ -58,40 +62,68 @@ jobs:
         with:
           python-version: '3.x'
       - run: pip install pyyaml
+        shell: bash
 
-      - name: Resync generated artifacts + build docs (gate the release)
-        run: |
-          python3 -m shipyard gen-describe
-          python3 -m shipyard build-docs
-
-      - name: Bump version and regenerate plugin.json
-        run: |
-          sed -i -E "s/^version: .*/version: ${{ steps.ver.outputs.version }}/" plugin.yml
-          python3 -m shipyard gen-plugin-json
-
-      - name: Proxy release notes into CHANGELOG.md
+      - name: Derive the version and retitle the notes
+        id: rel
+        shell: bash
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
-          BODY: ${{ github.event.release.body }}
-        run: python3 -m shipyard changelog
+          # By environment, not a run: interpolation — a workflow input expanded
+          # into a shell script is a script-injection vector.
+          BUMP: ${{ inputs.bump }}
+          NOTES: ${{ runner.temp }}/notes.md
+        run: python3 -m shipyard release --bump "$BUMP" --notes-file "$NOTES" >> "$GITHUB_OUTPUT"
 
-      - name: Commit and push to main
+      # A backstop, not the writer: the projection job already committed these
+      # when the source changed, so a release ordinarily finds nothing to resync.
+      # It runs after the bump so plugin.json carries the new version.
+      - name: Resync generated artifacts
+        shell: bash
+        run: python3 -m shipyard generate
+
+      - name: Commit the bump
+        shell: bash
+        env:
+          VERSION: ${{ steps.rel.outputs.version }}
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add plugin.yml .claude-plugin/plugin.json CHANGELOG.md
-          if git diff --cached --quiet; then
-            echo "No changes to commit (version ${{ steps.ver.outputs.version }} already current)."
-          else
-            git commit -m "Release v${{ steps.ver.outputs.version }}"
-            git push origin HEAD:main
-          fi
+          # -A for the same reason actions/project uses it: which paths are
+          # projections is shipyard's to change, and a named list here would make
+          # each new one a change to every caller. Ignored files stay out.
+          git add -A
+          git commit -m "Release v$VERSION"
+          git push origin HEAD:main
+
+      - name: Tag that commit
+        shell: bash
+        env:
+          VERSION: ${{ steps.rel.outputs.version }}
+        run: |
+          set -euo pipefail
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+
+      - name: Publish the release from the changelog section
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.rel.outputs.version }}
+          NOTES: ${{ runner.temp }}/notes.md
+        run: |
+          set -euo pipefail
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file "$NOTES"
 
       - name: Notify bridge.ai marketplace
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.MARKETPLACE_DISPATCH_TOKEN }}
+          PLUGIN: ${{ github.event.repository.name }}
+          VERSION: ${{ steps.rel.outputs.version }}
         run: |
+          set -euo pipefail
           gh api repos/chris-peterson/claude-marketplace/dispatches \
             -f event_type=plugin-released \
-            -f "client_payload[plugin]=${{ github.event.repository.name }}" \
-            -f "client_payload[tag]=${{ github.event.release.tag_name }}"
+            -f "client_payload[plugin]=$PLUGIN" \
+            -f "client_payload[tag]=v$VERSION"

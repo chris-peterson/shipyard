@@ -185,7 +185,7 @@ npx docsify-cli serve docs
 
 ## The release flow
 
-Publishing a GitHub release on a plugin fires its `release.yml`, a one-line caller of shipyard's reusable release workflow. shipyard does the rest and hands off to the marketplace.
+Dispatching a plugin's `release.yml` with a bump level is the whole trigger. shipyard derives the version, retitles the notes already staged in `CHANGELOG.md`, commits, tags *that* commit, publishes, and hands off to the marketplace.
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
@@ -194,15 +194,22 @@ sequenceDiagram
   participant GH as plugin repo
   participant SY as shipyard release.yml
   participant MP as bridge.ai marketplace
-  You->>GH: publish release vX.Y.Z
+  You->>GH: dispatch release, bump=minor
   GH->>SY: uses shipyard release workflow
-  SY->>SY: resync describe, regenerate plugin.json
-  SY->>SY: write version, proxy notes to CHANGELOG
-  SY->>GH: commit + push to main
+  SY->>SY: derive version from plugin.yml
+  SY->>SY: retitle Unreleased to that version
+  SY->>GH: commit the bump, then tag it
+  SY->>GH: publish release from the section
   SY->>MP: repository_dispatch (plugin-released)
   MP->>MP: rebuild the catalog from every plugin.yml
 ```
 
-Nothing here is plugin-specific — the plugin name comes from the repository — so one reusable workflow drives every plugin.
+**The commit precedes the tag, and that ordering is the fix.** The trigger used to be `release: published`, so a human cut the tag before any of this ran and the bump commit always landed after the tag naming it. `plugin.json` at a tag reported the *previous* version, and the changelog at that tag had no section for it. Deriving the version here means the tag names a commit that already carries it.
 
-What the person (or agent) publishing the release is responsible for, and what to leave to CI, is in **[Cutting a release](releasing.md)**.
+**`CHANGELOG.md` is the source, not a destination.** The release body used to be authored outside the repo at publish time, which made it the source and left nothing constraining its shape — across the suite it took at least three incompatible forms, each now permanent in some changelog. Reading the notes out of the file makes a duplicated or mismatched heading unreachable rather than a shape the parser has to tolerate, and it means the notes were reviewed in the diff beside the change they describe.
+
+A run with no `## Unreleased` section, or an empty one, fails. That is deliberate: a tag naming a version whose entry says nothing can't be fixed without moving the tag.
+
+Nothing here is plugin-specific — the plugin name comes from the repository — so one reusable workflow drives every plugin. shipyard releases *itself* the same way, through its own `cut-release.yml`, so the flow is exercised before a plugin depends on it.
+
+What the person (or agent) driving a release is responsible for, and what to leave to CI, is in **[Cutting a release](releasing.md)**.

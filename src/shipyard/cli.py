@@ -24,6 +24,8 @@ from __future__ import annotations
 import argparse
 import sys
 
+from . import version
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="shipyard", description=__doc__)
@@ -42,7 +44,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="the declared CLI's --help → its committed grammar manifest")
     add("build-docs", help="render skills/rules/… into docs/ (+ plugin-docs.json); "
                            "plugin.yml `docs: resources:` names extra paths to publish")
-    add("changelog", help="prepend a release section to CHANGELOG.md (VERSION/BODY env)")
+    rel = add("release", help="retitle the staged notes, bump the version, print it")
+    rel.add_argument("--bump", required=True, choices=version.LEVELS,
+                     help="how far to advance the version")
+    rel.add_argument("--notes-file", default=None,
+                     help="write the released section here, for --notes-file")
     add("roster", help="plugins.yml → name/url pairs (no plugin checkouts needed)")
     add("gen-marketplace-json", help="plugins.yml + plugins → .claude-plugin/marketplace.json")
     add("gen-plugins-js", help="plugins' suite: blocks → docs/plugins.js")
@@ -83,9 +89,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "build-docs":
         from . import build_docs
         return build_docs.run(root)
-    if args.command == "changelog":
-        from . import changelog
-        return changelog.run(root)
+    if args.command == "release":
+        from . import release
+        return release.run(root, bump=args.bump, notes_file=args.notes_file)
     if args.command == "roster":
         from . import roster
         return roster.run(root)
