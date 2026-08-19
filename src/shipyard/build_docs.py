@@ -32,7 +32,6 @@ those routes — so one link works in the checkout, on the forge, and on the sit
 from __future__ import annotations
 
 import html
-import os
 import pathlib
 import re
 import shutil
@@ -41,7 +40,8 @@ import urllib.parse
 import yaml
 
 from . import gen_cli_manifest, gen_plugin_docs, links
-from ._common import load_plugin, plugin_root
+from ._common import block, load_plugin, plugin_root
+from .gen_hooks_json import load_hooks
 
 COPY_DIRS = ("rules", "guides", "templates", "references")
 
@@ -83,8 +83,7 @@ ARTIFACT_HEADINGS = {
     "agents": ("Agents", "Agent"),
 }
 
-# Publish assets/ when the caller names nothing. Declared here rather than as the
-# action/workflow input default so raising it doesn't need every caller to re-pin.
+# Publish assets/ when plugin.yml names nothing.
 DEFAULT_RESOURCES = ("assets",)
 
 # A file reference: an `<img src>` or a markdown image names a file that has to
@@ -104,7 +103,7 @@ def _render_index_html(spec: dict) -> str:
     session player is emitted only when the plugin ships a suite: preview."""
     name = html.escape(spec.get("name", ""))
     description = html.escape(spec.get("description", ""))
-    docs = spec.get("docs") or {}
+    docs = block(spec, "docs", "plugin.yml")
     langs = ", ".join(f"'{lang}'" for lang in (docs.get("code_languages") or ["bash", "yaml", "json"]))
 
     init = [f"      name: '{spec.get('name', '')}',", f"      code_languages: [{langs}]"]
@@ -154,7 +153,7 @@ def _declared_hooks(r: pathlib.Path) -> list[tuple[str, dict, str]]:
     if not hooks_yml.is_file():
         return []
     out = []
-    for entry in (yaml.safe_load(hooks_yml.read_text()) or {}).get("hooks") or []:
+    for entry in load_hooks(hooks_yml):
         match = _PLUGIN_ROOT_PATH.search(entry.get("command", ""))
         path = match.group(1) if match else ""
         name = pathlib.PurePosixPath(path).stem if path else entry.get("event", "hook")
@@ -236,7 +235,7 @@ def _render_home_md(spec: dict, r: pathlib.Path, published: set[str]) -> str:
     with `[](_home.md ':include')`, so a plugin opts in with one line and keeps
     whatever it wants to say above and below."""
     name = spec.get("name", "")
-    suite = spec.get("suite") or {}
+    suite = block(spec, "suite", "plugin.yml")
     describe = suite.get("describe") or {}
 
     # `cmds` is the author's own copy for the skills a user reaches for, so it
@@ -314,14 +313,24 @@ def _strip_frontmatter(text: str) -> str:
     return text  # no frontmatter fence -> pass through
 
 
-def resources_from_env() -> list[str] | None:
-    """The resource paths the CI entry point declares, newline- or comma-separated.
-    Carried by environment rather than a flag because the value originates in a
-    workflow input, and interpolating one into a `run:` script is a script
-    injection. Unset or empty means the caller named nothing, not "publish
-    nothing" — DEFAULT_RESOURCES then applies."""
-    paths = [p.strip() for p in re.split(r"[\n,]", os.environ.get("SHIPYARD_RESOURCES", ""))]
-    return [p for p in paths if p] or None
+def declared_resources(spec: dict) -> list[str] | None:
+    """The resource paths from plugin.yml's `docs:` block, or None when it names
+    none — which means DEFAULT_RESOURCES applies, not "publish nothing".
+
+    This is a fact about the plugin, so it lives with every other one, in the
+    plugin's own descriptor. Reading it from the checkout is also what lets a
+    local `build-docs` reproduce CI's exactly: the paths used to arrive as a
+    workflow input, so they were the one thing a run outside CI couldn't see."""
+    declared = spec.get("resources")
+    if declared is None:
+        return None
+    if isinstance(declared, str):
+        declared = [declared]
+    if not isinstance(declared, list) or not all(isinstance(p, str) for p in declared):
+        raise SystemExit(
+            "shipyard: plugin.yml `docs: resources:` must be a path or a list of "
+            f"paths, got {declared!r}")
+    return [p.strip() for p in declared if p.strip()] or None
 
 
 def _publish_resources(r: pathlib.Path, docs: pathlib.Path,
@@ -387,8 +396,8 @@ def _check_refs(docs: pathlib.Path) -> None:
         raise SystemExit(
             "shipyard: docs reference files the published tree doesn't carry:\n"
             + "\n".join(broken)
-            + "\n\nCommit them under docs/, or name their directory in the "
-              "build's `resources` input.")
+            + "\n\nCommit them under docs/, or name their directory in "
+              "plugin.yml's `docs: resources:`.")
 
 
 def _rewrite_links(docs: pathlib.Path,
@@ -435,15 +444,15 @@ def _check_links(docs: pathlib.Path) -> None:
     raise SystemExit("\n".join(report))
 
 
-def run(root: str | pathlib.Path | None = None,
-        resources: list[str] | None = None) -> int:
+def run(root: str | pathlib.Path | None = None) -> int:
     r = plugin_root(root)
     docs = r / "docs"
+    plugin = load_plugin(root)
 
     # First, so that everything projected below wins a name collision — shipyard
     # owns index.html and the rendered pages, and a resource quietly replacing one
     # of them would be a build whose output depends on copy order.
-    _publish_resources(r, docs, resources)
+    _publish_resources(r, docs, declared_resources(block(plugin, "docs", "plugin.yml")))
 
     # Each rendered page paired with the source it came from, so the link rewrite
     # below can resolve that page's links the way a reader of the source does.
@@ -497,7 +506,6 @@ def run(root: str | pathlib.Path | None = None,
 
     # docsify bootstrap, projected from plugin.yml. Opt-in: a plugin that hasn't
     # declared a docs: block keeps its hand-written index.html untouched.
-    plugin = load_plugin(root)
     if plugin.get("docs") is not None:
         docs.mkdir(parents=True, exist_ok=True)
         (docs / "index.html").write_text(_render_index_html(plugin))

@@ -126,7 +126,15 @@ in that window is a cherry-pick onto a `v1` branch and a re-cut tag.
 - **Missing required source is an error, not a default.** `load_plugin` raises on
   a missing `plugin.yml` rather than projecting from an empty dict — a generator
   that quietly writes a stub artifact produces a plugin that looks built and
-  isn't.
+  isn't. Malformed source is the same rule one step along: `_common.load_mapping`
+  and `_common.block` reject a wrong-typed file or block by naming the file and
+  the shape, because the alternative is an `AttributeError` from whichever
+  projector dereferenced it first, read by someone with no shipyard checkout.
+- **Every projector input comes from the target checkout.** No projection may take
+  a fact about the plugin from anywhere else — an action input, an environment
+  variable, the caller's workflow. That's what makes a local run reproduce CI's,
+  and it's why resource paths are `plugin.yml`'s `docs: resources:` rather than an
+  input on two actions.
 - **Python 3.10+, `pyyaml` the only runtime dependency**, `pytest` and
   `jsonschema` dev-only. The workflows and actions install `pyyaml` and run the
   CLI as `python3 -m shipyard` from a checkout, so nothing on the CI path may

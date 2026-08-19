@@ -41,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("gen-cli-manifest",
         help="the declared CLI's --help → its committed grammar manifest")
     add("build-docs", help="render skills/rules/… into docs/ (+ plugin-docs.json); "
-                           "SHIPYARD_RESOURCES names extra paths to publish")
+                           "plugin.yml `docs: resources:` names extra paths to publish")
     add("changelog", help="prepend a release section to CHANGELOG.md (VERSION/BODY env)")
     add("roster", help="plugins.yml → name/url pairs (no plugin checkouts needed)")
     add("gen-marketplace-json", help="plugins.yml + plugins → .claude-plugin/marketplace.json")
@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         return gen_cli_manifest.run(root)
     if args.command == "build-docs":
         from . import build_docs
-        return build_docs.run(root, build_docs.resources_from_env())
+        return build_docs.run(root)
     if args.command == "changelog":
         from . import changelog
         return changelog.run(root)
@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         gen_plugin_json.run(root)
         # before the docs, which render the manifest into the CLI reference page
         gen_cli_manifest.run(root)
-        build_docs.run(root, build_docs.resources_from_env())
+        build_docs.run(root)
         return 0
     return 1
 

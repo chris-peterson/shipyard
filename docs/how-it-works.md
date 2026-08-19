@@ -58,7 +58,14 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
   A **dependency** resolves to its docs on the hub by name, which is also what marks it as a peer: peers lead the table and carry their own mark, while a project documenting itself elsewhere declares a `url`, reads as outbound, and sorts to the bottom.
 
-  Only `docs/` is published, so a page's `<img src="hero.svg">` resolves only if that file is in the artifact. **Resource paths** put it there: each path the caller names is copied in, with its directory flattened to the docs root, so `assets/hero.svg` is reachable as `hero.svg` — the same placement each plugin's own `cp assets/* docs/` step gave it before shipyard replaced that step. Name them on the build's `resources` input; `assets` applies when you name nothing.
+  Only `docs/` is published, so a page's `<img src="hero.svg">` resolves only if that file is in the artifact. **Resource paths** put it there: each path the caller names is copied in, with its directory flattened to the docs root, so `assets/hero.svg` is reachable as `hero.svg` — the same placement each plugin's own `cp assets/* docs/` step gave it before shipyard replaced that step. Declare them in `plugin.yml`, which is also what lets a local `build-docs` reproduce CI's; `assets` applies when you name nothing.
+
+  ```yaml
+  docs:
+    resources:
+      - assets
+      - vendor/screenshots
+  ```
 
   `build-docs` then resolves every local file reference the rendered pages make against the tree as it will ship, and fails on one it can't. That gate is the point: a reference to a file that isn't published costs nothing at build time and shows up only as a blank space on the live page, which is how one plugin's homepage hero stayed missing for a month behind a green deploy. References inside code fences and inline spans are prose, not references, so a guide that *documents* markdown isn't punished for it.
 
@@ -167,13 +174,7 @@ arrives untracked, so `git status` is what tells you it's there.
 
 Pin the same ref your workflows pin. Debugging a `@v2` job against `v1`'s generators reproduces the wrong shape, which is worse than not reproducing it at all.
 
-Not everything that reddens the job is reachable this way:
-
-| Failure | Reproduces locally |
-|---|---|
-| malformed `plugin.yml` or `hooks.yml`; a dead docs link; a CLI whose help the engine can't parse | yes, identically |
-| a missing resource path | only if you set `SHIPYARD_RESOURCES` by hand — it arrives as a workflow input, so the checkout doesn't carry it |
-| detached HEAD, a rejected push, a fork's read-only token | no, and it shouldn't. These live only in the job, and the action names the fix in its own error |
+Every projector reads its input from the checkout, so anything wrong with the *source* reproduces identically — a malformed `plugin.yml` or `hooks.yml`, a dead docs link, a missing resource path, a CLI whose help the engine can't parse. What doesn't reproduce is the job's own machinery: a detached HEAD, a rejected push, a fork's read-only token. Those live only in the run, and the action names the fix in its own error.
 
 `build-docs` writes into a git-ignored `docs/`, so rendering the site to look at it is safe in a way it wasn't when that output was committed:
 

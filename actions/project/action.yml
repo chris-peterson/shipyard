@@ -30,12 +30,6 @@ inputs:
     description: The commit subject for a projection this action has to push.
     required: false
     default: Project generated artifacts
-  resources:
-    description: >-
-      Newline-separated paths whose contents are published alongside docs/,
-      forwarded to build-docs. Empty uses shipyard's default (assets).
-    required: false
-    default: ''
 
 outputs:
   pushed:
@@ -56,9 +50,6 @@ runs:
       shell: bash
       env:
         PYTHONPATH: ${{ github.action_path }}/../../src
-        # By environment, not a run: interpolation — a workflow input expanded
-        # into a shell script is a script-injection vector.
-        SHIPYARD_RESOURCES: ${{ inputs.resources }}
 
     - name: Commit and push the projection
       id: project

@@ -24,17 +24,36 @@ from __future__ import annotations
 import json
 import pathlib
 
-import yaml
+from ._common import load_mapping, plugin_root
 
-from ._common import plugin_root
+HOOKS_SHAPE = "a mapping with a `hooks:` list"
 
 
 def hooks_yml_path(root: str | pathlib.Path | None = None) -> pathlib.Path:
     return plugin_root(root) / "hooks" / "hooks.yml"
 
 
+def load_hooks(path: pathlib.Path) -> list:
+    """The declared hook entries. The one reader of hooks.yml — build-docs and
+    gen-describe come through here too, so a shape it rejects is rejected for
+    every projection rather than by whichever one ran first."""
+    entries = load_mapping(path, HOOKS_SHAPE).get("hooks")
+    if entries is None:
+        return []
+    if not isinstance(entries, list):
+        raise SystemExit(
+            f"shipyard: {path} `hooks:` must be a list of entries, but it is "
+            f"a {type(entries).__name__}")
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise SystemExit(
+                f"shipyard: {path} has a hook entry that is a "
+                f"{type(entry).__name__}, not a mapping: {entry!r}")
+    return entries
+
+
 def build(root: str | pathlib.Path | None = None) -> str:
-    entries = (yaml.safe_load(hooks_yml_path(root).read_text()) or {}).get("hooks") or []
+    entries = load_hooks(hooks_yml_path(root))
     events: dict[str, list] = {}  # event -> [ [matcher, [command, ...]], ... ]
     for e in entries:
         event, matcher, command = e["event"], e.get("matcher"), e["command"]

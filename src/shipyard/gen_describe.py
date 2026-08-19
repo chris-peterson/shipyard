@@ -23,6 +23,7 @@ import re
 import yaml
 
 from ._common import plugin_root
+from .gen_hooks_json import load_hooks
 
 BEGIN = "  # >>> shipyard:describe — generated from source by `shipyard gen-describe`; do not edit >>>"
 END = "  # <<< shipyard:describe <<<"
@@ -91,7 +92,7 @@ def _doc_line(path: pathlib.Path) -> str:
 def _hooks_yml_desc(hooks_yml: pathlib.Path) -> dict[str, str]:
     """Each hook's description, keyed by the script stem / engine it delegates to
     (via _target_label), read from hooks.yml — the source of record."""
-    entries = (yaml.safe_load(hooks_yml.read_text()) or {}).get("hooks") or []
+    entries = load_hooks(hooks_yml)
     out: dict[str, str] = {}
     for e in entries:
         if e.get("description"):

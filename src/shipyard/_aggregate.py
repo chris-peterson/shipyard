@@ -25,9 +25,7 @@ from __future__ import annotations
 import csv
 import pathlib
 
-import yaml
-
-from ._common import plugin_root
+from ._common import load_mapping, plugin_root
 
 MANIFEST = "plugins.yml"
 
@@ -47,7 +45,7 @@ def load_manifest(root: str | pathlib.Path | None = None) -> dict:
     path = plugin_root(root) / MANIFEST
     if not path.exists():
         raise SystemExit(f"shipyard: no {MANIFEST} at {path}")
-    return yaml.safe_load(path.read_text()) or {}
+    return load_mapping(path, "a mapping carrying the roster")
 
 
 def roster(root: str | pathlib.Path | None = None) -> list[tuple[str, str]]:
@@ -115,7 +113,7 @@ def load_spoke(name: str, root: str | pathlib.Path | None = None) -> dict:
         raise SystemExit(
             f"shipyard: {name} is on the roster but has no plugin.yml at {path} — "
             "sync the plugin checkouts beside the aggregator first")
-    spec = yaml.safe_load(path.read_text()) or {}
+    spec = load_mapping(path, "a mapping of the plugin's fields")
     if not spec.get("description"):
         raise SystemExit(f"shipyard: {name}/plugin.yml has no description:")
     return spec

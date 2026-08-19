@@ -7,15 +7,10 @@ description: >-
 # and adds the Pages upload. A caller that already owns its deploy job uses this
 # directly; one that just wants "publish my docs" uses the workflow.
 
-inputs:
-  resources:
-    description: >-
-      Newline-separated paths, relative to the plugin root, whose contents are
-      copied into the published tree — the art a docs page references from
-      outside docs/. A directory flattens to the docs root, so assets/hero.svg
-      is reachable as hero.svg. Empty uses shipyard's default (assets).
-    required: false
-    default: ''
+# Resource paths — the art a docs page references from outside docs/ — are read
+# from the plugin's own `docs: resources:`, not passed in here. They describe the
+# plugin, so they belong with everything else that does, and reading them from the
+# checkout is what lets a local build-docs reproduce this one exactly.
 
 runs:
   using: composite
@@ -30,6 +25,3 @@ runs:
       shell: bash
       env:
         PYTHONPATH: ${{ github.action_path }}/../../src
-        # By environment, not a run: interpolation — a workflow input expanded
-        # into a shell script is a script-injection vector.
-        SHIPYARD_RESOURCES: ${{ inputs.resources }}

@@ -6,6 +6,14 @@ from shipyard import build_docs
 PLUGIN_YML = "name: demo\nsuite: {sessions: []}\n"
 
 
+def declare_resources(root, *paths):
+    """Point the plugin's `docs: resources:` at `paths` — where the build reads
+    them from, so a test that declares them exercises the same path CI does."""
+    (root / "plugin.yml").write_text(
+        PLUGIN_YML + "docs:\n  resources:\n"
+        + "".join(f"    - {p}\n" for p in paths))
+
+
 @pytest.fixture
 def plugin(tmp_path):
     """A plugin root with the minimum build_docs needs, plus a helper to seed
@@ -42,8 +50,9 @@ def test_declared_paths_replace_the_default(plugin):
     write("art/diagram.png", "png")
     write("assets/hero.svg", "<svg/>")
     write("docs/README.md", '<img src="diagram.png">')
+    declare_resources(root, "art")
 
-    build_docs.run(root, ["art"])
+    build_docs.run(root)
 
     assert (root / "docs" / "diagram.png").exists()
     assert not (root / "docs" / "hero.svg").exists()
@@ -52,17 +61,19 @@ def test_declared_paths_replace_the_default(plugin):
 def test_a_declared_path_that_does_not_exist_fails_loudly(plugin):
     root, write = plugin
     write("docs/README.md", "# demo")
+    declare_resources(root, "art")
 
     with pytest.raises(SystemExit, match="declared resource path not found: art"):
-        build_docs.run(root, ["art"])
+        build_docs.run(root)
 
 
 def test_a_resource_path_outside_the_plugin_is_refused(plugin):
     root, write = plugin
     write("docs/README.md", "# demo")
+    declare_resources(root, "../elsewhere")
 
     with pytest.raises(SystemExit, match="must be inside the plugin"):
-        build_docs.run(root, ["../elsewhere"])
+        build_docs.run(root)
 
 
 def test_a_reference_the_published_tree_cannot_resolve_fails_the_build(plugin):
@@ -119,9 +130,10 @@ def test_a_percent_encoded_reference_resolves_to_the_file_it_names(plugin):
 def test_a_resource_path_containing_docs_is_refused(plugin):
     root, write = plugin
     write("docs/README.md", "# demo")
+    declare_resources(root, ".")
 
     with pytest.raises(SystemExit, match="below docs/"):
-        build_docs.run(root, ["."])
+        build_docs.run(root)
 
 
 def test_a_projected_artifact_wins_a_collision_with_a_resource(plugin):
@@ -471,13 +483,19 @@ def test_a_described_artifact_with_no_page_reads_as_a_name_not_a_link(tmp_path):
     assert "(/skills/gone)" not in home
 
 
-def test_resources_from_env_splits_on_newlines_and_commas(monkeypatch):
-    monkeypatch.setenv("SHIPYARD_RESOURCES", "assets\n  art  ,\n\nimages\n")
+def test_declared_resources_reads_the_docs_block():
+    assert build_docs.declared_resources({"resources": ["assets", "art"]}) == \
+        ["assets", "art"]
 
-    assert build_docs.resources_from_env() == ["assets", "art", "images"]
+
+def test_a_lone_path_need_not_be_written_as_a_list():
+    assert build_docs.declared_resources({"resources": "art"}) == ["art"]
 
 
-def test_an_unset_env_means_the_default_applies_not_publish_nothing(monkeypatch):
-    monkeypatch.delenv("SHIPYARD_RESOURCES", raising=False)
+def test_no_declaration_means_the_default_applies_not_publish_nothing():
+    assert build_docs.declared_resources({}) is None
 
-    assert build_docs.resources_from_env() is None
+
+def test_a_wrong_typed_resources_value_is_refused():
+    with pytest.raises(SystemExit, match="must be a path or a list of paths"):
+        build_docs.declared_resources({"resources": {"assets": True}})

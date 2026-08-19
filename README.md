@@ -86,9 +86,9 @@ reproduce](https://chris-peterson.github.io/shipyard/#/how-it-works?id=debugging
 
 Only `docs/` is published, so art a page references from elsewhere in the repo
 404s on the live site. `build-docs` copies the plugin's **resource paths** into
-the published tree to close that (`assets/` unless the caller names others — see
-the `resources` input on `actions/build-docs`), then fails the build on any local
-reference the tree can't resolve. That last part is what makes the failure
+the published tree to close that (`assets/` unless `plugin.yml`'s `docs:
+resources:` names others), then fails the build on any local reference the tree
+can't resolve. That last part is what makes the failure
 visible: a missing image otherwise produces a green deploy and a blank page.
 
 → **[Docs](https://chris-peterson.github.io/shipyard)** — how it works, and a

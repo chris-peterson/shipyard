@@ -10,11 +10,11 @@ from __future__ import annotations
 import json
 import pathlib
 
-from ._common import load_plugin, plugin_root
+from ._common import block, load_plugin, plugin_root
 
 
 def run(root: str | pathlib.Path | None = None) -> int:
-    suite = load_plugin(root).get("suite")
+    suite = block(load_plugin(root), "suite", "plugin.yml") or None
     if not suite:
         raise SystemExit("plugin.yml has no suite: block — the docs session preview needs it")
     generated = json.dumps(suite, indent=2, ensure_ascii=False) + "\n"

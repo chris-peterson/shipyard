@@ -10,15 +10,6 @@ name: Deploy docs (shipyard)
 
 on:
   workflow_call:
-    inputs:
-      resources:
-        description: >-
-          Newline-separated paths whose contents are published alongside docs/,
-          for art a page references from outside it. Empty uses the default
-          (assets). Forwarded to actions/build-docs.
-        required: false
-        type: string
-        default: ''
 
 permissions:
   pages: write
@@ -45,8 +36,6 @@ jobs:
       # With two majors live, a caller at @v2 would otherwise silently get v1's
       # build-docs.
       - uses: chris-peterson/shipyard/actions/build-docs@v2
-        with:
-          resources: ${{ inputs.resources }}
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs

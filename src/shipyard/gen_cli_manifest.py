@@ -40,7 +40,7 @@ import subprocess
 
 import yaml
 
-from ._common import load_plugin, plugin_root
+from ._common import block, load_mapping, load_plugin, plugin_root
 
 SCHEMA_URL = "https://chris-peterson.github.io/shipyard/cli-manifest.v1.json"
 FORMAT_VERSION = 1
@@ -328,7 +328,7 @@ def _cli_spec(root: str | pathlib.Path | None) -> dict | None:
         # load_plugin for its `cli:` block would fail the run rather than skip
         # it. A repo presenting other people's plugins ships no CLI of its own.
         return None
-    spec = load_plugin(root).get("cli")
+    spec = block(load_plugin(root), "cli", "plugin.yml") or None
     if spec is None:
         return None
     if not isinstance(spec, dict):
@@ -560,7 +560,7 @@ def docs_page(root: str | pathlib.Path | None = None) -> str | None:
     path = target(root)
     if path is None or not path.exists():
         return None
-    manifest = yaml.safe_load(path.read_text()) or {}
+    manifest = load_mapping(path, "a mapping carrying the recorded grammar")
     source = path.relative_to(plugin_root(root)).as_posix()
     if not manifest.get("name"):
         # build-docs gates the release, so an unreadable manifest has to name
