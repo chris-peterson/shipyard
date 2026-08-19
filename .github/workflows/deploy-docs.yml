@@ -40,8 +40,11 @@ jobs:
       - uses: actions/configure-pages@v6
       # Pinned rather than tracking the ref the caller pinned this workflow at:
       # `uses:` takes no expression, so ${{ github.ref }} isn't available here.
-      # Move both together when v1 advances.
-      - uses: chris-peterson/shipyard/actions/build-docs@v1
+      # The pin therefore names the line this file is on, and changes when a new
+      # line is cut: the copy at the v1 tag reads @v1, and this one reads @v2.
+      # With two majors live, a caller at @v2 would otherwise silently get v1's
+      # build-docs.
+      - uses: chris-peterson/shipyard/actions/build-docs@v2
         with:
           resources: ${{ inputs.resources }}
       - uses: actions/upload-pages-artifact@v5

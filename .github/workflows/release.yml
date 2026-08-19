@@ -43,11 +43,15 @@ jobs:
         with:
           ref: main
 
+      # Like the pin in deploy-docs.yml, this ref names the line this file is on
+      # rather than the one the caller pinned, and changes when a new line is cut.
+      # It matters more here: with two majors live, a caller at @v2 would run v1's
+      # generators over its sources during a release.
       - name: Check out shipyard tooling
         uses: actions/checkout@v6
         with:
           repository: chris-peterson/shipyard
-          ref: v1
+          ref: v2
           path: .shipyard
 
       - uses: actions/setup-python@v6
