@@ -44,7 +44,9 @@ def _plugin(tmp_path, help_text=HELP, cli_block=True):
         "  engine: usage-lines\n"
         "  manifest: spec/v1/cli.yml\n"
     ) if cli_block else ""
-    (tmp_path / "plugin.yml").write_text(f"name: demo\nsuite: {{sessions: []}}\n{block}")
+    # suite: as a block mapping, not `{sessions: []}` — gen-describe splices
+    # describe: into it, and a flow mapping has no block body to splice into.
+    (tmp_path / "plugin.yml").write_text(f"name: demo\nsuite:\n  sessions: []\n{block}")
     return tmp_path
 
 

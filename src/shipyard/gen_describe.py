@@ -171,29 +171,69 @@ def render_block(describe: dict) -> str:
     return f"{BEGIN}\n{indented}\n{END}"
 
 
-def _splice(text: str, block: str) -> str:
-    lines = text.splitlines()
-    # existing generated region?
+def _suite_body(lines: list[str]) -> tuple[int, int]:
+    """The half-open line range of `suite:`'s body — everything indented under it.
+
+    `describe:` is a key *of* `suite:`, so the block has exactly one correct home
+    and the file has to say where it is. Anything positional (append at the end,
+    two-space indent) is only right while `suite:` happens to be the last
+    top-level key, and lands the block under whichever key follows it otherwise:
+    valid YAML, `suite.describe` absent, and nothing to see until a projection
+    that reads it comes up empty."""
+    for i, line in enumerate(lines):
+        if not re.match(r"^suite:", line):
+            continue
+        if line.rstrip() != "suite:":
+            # `suite: {sessions: []}` — a flow mapping has no block body, and
+            # indenting a key under it is a parse error rather than a nesting.
+            # Rewriting it as block style would reformat a hand-authored line,
+            # which this module exists not to do.
+            raise SystemExit(
+                "shipyard gen-describe: plugin.yml writes `suite:` inline, so there "
+                "is no block to add `describe:` to. Write `suite:` as a block "
+                "mapping with its keys indented beneath it.")
+        j = i + 1
+        while j < len(lines) and (not lines[j].strip() or lines[j][:1] in " \t"):
+            j += 1
+        # Back off trailing blanks so the block lands against the last key
+        # rather than after the gap before the next top-level one.
+        while j > i + 1 and not lines[j - 1].strip():
+            j -= 1
+        return i + 1, j
+    raise SystemExit(
+        "shipyard gen-describe: plugin.yml has no `suite:` block. `describe:` is a "
+        "key of `suite:`, so there is nowhere to write it — declare `suite:` first.")
+
+
+def _without_existing(lines: list[str]) -> list[str]:
+    """`lines` with any previously written describe removed, wherever it sits.
+
+    Removing before inserting is what relocates a block an earlier run put in the
+    wrong place, so a plugin carrying one is repaired by the next projection
+    rather than keeping it forever."""
     begins = [i for i, l in enumerate(lines) if l.rstrip() == BEGIN.rstrip()]
     if begins:
         i = begins[0]
         j = next(k for k in range(i, len(lines)) if lines[k].rstrip() == END.rstrip())
-        return "\n".join(lines[:i] + block.splitlines() + lines[j + 1:]) + "\n"
-    # a plain (hand-authored) describe: block under suite? replace it in place.
+        return lines[:i] + lines[j + 1:]
+    # a plain (hand-authored) describe: and the lines indented under it
     plain = [i for i, l in enumerate(lines) if re.match(r"^  describe:\s*$", l)]
     if plain:
         i = plain[0]
         j = i + 1
         while j < len(lines) and (not lines[j].strip() or len(lines[j]) - len(lines[j].lstrip()) > 2):
             j += 1
-        return "\n".join(lines[:i] + block.splitlines() + lines[j:]) + "\n"
-    # otherwise insert before examples:/session:, else at end of file.
-    for key in ("  examples:", "  session:"):
-        anchors = [i for i, l in enumerate(lines) if l.rstrip() == key]
-        if anchors:
-            i = anchors[0]
-            return "\n".join(lines[:i] + block.splitlines() + lines[i:]) + "\n"
-    return text.rstrip() + "\n" + block + "\n"
+        return lines[:i] + lines[j:]
+    return lines
+
+
+def _splice(text: str, block: str) -> str:
+    lines = _without_existing(text.splitlines())
+    start, end = _suite_body(lines)
+    # Inside suite:, describe: sorts ahead of these two when the plugin has them.
+    at = next((i for i, l in enumerate(lines[start:end], start)
+               if l.rstrip() in ("  examples:", "  session:")), end)
+    return "\n".join(lines[:at] + block.splitlines() + lines[at:]) + "\n"
 
 
 def run(root: str | pathlib.Path | None = None) -> int:
