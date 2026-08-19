@@ -66,11 +66,23 @@ aggregator's own sync step produces, which `roster` is what bootstraps.
 ## Using it from a plugin
 
 A plugin's `.github/workflows/` are thin callers of shipyard's reusable
-workflows and composite actions, pinned to the `v1` tag. Nothing runs shipyard
-locally: the `project` action projects every artifact on each push and commits
-the result to the branch, so a committed artifact matches its source at all
-times. See a converted plugin (e.g.
+workflows and composite actions, pinned to a major-version ref. Nothing writes
+an artifact locally: the `project` action projects every one of them on each
+push and commits the result to the branch, so a committed artifact matches its
+source at all times. See a converted plugin (e.g.
 [anchor](https://github.com/chris-peterson/anchor)) for the callers.
+
+To *read* what CI would have written — which is what you want when the
+projection job goes red — run the same CLI it runs, pinned to the same ref your
+workflows are:
+
+```bash
+uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard generate
+```
+
+Then `git diff` to see it and `git restore .` to throw it away; CI stays the only
+writer. [What this does and doesn't
+reproduce](https://chris-peterson.github.io/shipyard/#/how-it-works?id=debugging-a-red-projection-job).
 
 Only `docs/` is published, so art a page references from elsewhere in the repo
 404s on the live site. `build-docs` copies the plugin's **resource paths** into

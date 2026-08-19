@@ -79,7 +79,7 @@ PreToolUse→watchdog (Bash, Write|Edit); SessionStart→cli-freshness, emit-rul
 ## Converting your own plugin
 
 1. Declare hooks in `hooks/hooks.yml` (`event`, `matcher?`, `command`, `description`); `gen-hooks-json` generates `hooks.json`.
-2. Copy the workflow callers from anchor, pinned at `@v1`. The projection one grants its job `contents: write`, checks out the head ref, and runs the plugin's own build before shipyard's [`project` action](how-it-works.md#the-projection-job).
+2. Copy the workflow callers from anchor, pinned at `@v2` — the projection shape doesn't exist on the `v1` line. The projection caller grants its job `contents: write`, checks out the head ref, and runs the plugin's own build before shipyard's [`project` action](how-it-works.md#the-projection-job).
 3. Delete the local build scripts, and any `just` target or pre-commit hook that ran one — CI is the writer now.
 4. Git-ignore what the projection doesn't commit (rendered `docs/`), so the action doesn't stage it.
 5. Open the PR. The projection job pushes the regenerated artifacts onto your branch, so the first thing to review is what it wrote.

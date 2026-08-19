@@ -53,11 +53,11 @@ A marketplace or catalog site is the other kind of target. It declares a `plugin
 
 ## How a plugin uses it
 
-One touch-point in each plugin repo — no packaged install, and nothing to run locally:
+One touch-point in each plugin repo — no packaged install, and nothing to run locally to *build* an artifact:
 
 - **`.github/workflows/`** — `release.yml` and `deploy-docs.yml` are one-line callers of shipyard's [reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows), and `project.yml` runs the plugin's own build before shipyard's [`project` action](how-it-works.md#the-projection-job), which projects every artifact and pushes the result to the branch.
 
-All of them pin the same ref, **`@v1`**.
+All of them pin the same major-version ref, and a repo is on one line or the other, never a mix. Two lines are live while the projection shape is being piloted: `@v1` is the workflow-only shape that predates it, `@v2` is the one described here. Reading what CI would have written is a separate path that stays available — see [debugging a red projection job](how-it-works.md#debugging-a-red-projection-job).
 
 Read on: **[How it works](how-it-works.md)** for the projection and CI flows, **[Cutting a release](releasing.md)** for the contract every harness that publishes one has to follow, or the **[before/after walk-through](example.md)** of converting a real plugin.
 

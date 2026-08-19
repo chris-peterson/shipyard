@@ -27,6 +27,18 @@ Running `generate` against a real plugin checkout is worth doing before pushing 
 generator change — `git diff` in that checkout then shows exactly what CI will
 commit. Discard it afterwards; the projection belongs to that repo's own CI.
 
+A plugin author has no shipyard checkout, so the same read from their side goes
+through the console script this package declares:
+
+```bash
+uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard generate
+```
+
+That's the answer to "the projection job is red and I can't see why", and it's
+the form the plugin-facing docs give. It stays a *read* — CI is still the only
+writer — so a change to `generate` that only makes sense when a human runs it is
+a change aimed at the wrong caller.
+
 ## Layout
 
 ```text
@@ -66,15 +78,33 @@ rather than a workflow that owns it: a CLI has to be built before it can be run.
 
 **What plugins call is a public API.** `.github/workflows/{deploy-docs,
 release}.yml` and `actions/{build-docs,project}` are called by every plugin via
-`uses: chris-peterson/shipyard/<path>@v1`. Changing an input, output, or
+`uses: chris-peterson/shipyard/<path>@<major>`. Changing an input, output, or
 permission changes their CI without them editing anything. (`pages.yml` and
 `test.yml` are shipyard's own CI, not part of that surface.)
 
-`v1` is a tag moved by hand, so a breaking change is coordinated rather than
-versioned: every consumer is in one owner's hands, so the sweep converts all of
-them and then moves the tag, with no release in between. That trade is the reason
-there is one tag to reason about instead of a version per consumer — and the
-reason a breaking change is a planned sweep, never a quiet edit.
+So a breaking change here is always planned, never a quiet edit. It gets one of
+two mechanisms, and the question that picks between them is whether the old and
+new shapes have to **coexist**.
+
+- **A mechanical break** (an input renamed, a permission added) doesn't. Every
+  consumer is in one owner's hands, so the sweep converts all of them in one
+  pass and then moves the current major's tag onto the result, with no release in
+  between. That is why there is one tag to reason about per line, instead of a
+  version per consumer.
+- **A change to the shape or the mechanics** does. Converting a plugin is then a
+  bet rather than a rename, so one plugin pilots the new shape while the rest go
+  on running the old one. Coexistence is what a second major version is for.
+
+While a pilot is running, `v2` is a **branch**. The pilot pins `@v2` and picks up
+each shipyard push without editing its own workflow, and `v1` still points at the
+old shape, so the unconverted repos keep releasing normally. Nothing is frozen,
+which is what lets the soak run as long as it needs to. Once the pilot proves
+out, delete the branch and create the `v2` **tag** at that commit: consumers'
+`@v2` never changes, only the kind of ref behind it. That order matters, so the
+repo never carries a branch and a tag of the same name at once.
+
+The cost is two live lines for the length of the soak. A fix the old shape needs
+in that window is a cherry-pick onto a `v1` branch and a re-cut tag.
 
 ## Conventions
 
@@ -99,8 +129,9 @@ reason a breaking change is a planned sweep, never a quiet edit.
   isn't.
 - **Python 3.10+, `pyyaml` the only runtime dependency**, `pytest` and
   `jsonschema` dev-only. The workflows and actions install `pyyaml` and run the
-  CLI as `python3 -m shipyard` from a checkout, so nothing may depend on shipyard
-  being pip-installed.
+  CLI as `python3 -m shipyard` from a checkout, so nothing on the CI path may
+  depend on shipyard being pip-installed. The `[project.scripts]` entry point is
+  for the local read above, and no projector may require it.
 - **Hook descriptions come from `hooks.yml`**, not from a comment convention in
   the hook scripts. `gen-describe` reads them straight from the declaration.
 

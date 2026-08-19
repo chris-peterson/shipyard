@@ -126,7 +126,7 @@ jobs:
           # there is no branch there to push a projection to.
           ref: ${{ github.head_ref }}
       - run: npm ci && npm run build          # whatever your CLI needs, first
-      - uses: chris-peterson/shipyard/actions/project@v1
+      - uses: chris-peterson/shipyard/actions/project@v2
 ```
 
 An action rather than a reusable workflow, because the caller's own job has to run first: a CLI manifest needs a built CLI to interrogate, and compiled output has to compile before it can be projected. A reusable workflow owns the whole job, so it could only take that build as a string to interpolate — awkward, and a script-injection surface.
@@ -149,7 +149,38 @@ The job terminates on its own: its push triggers a rerun that finds nothing to p
 
 **What gets committed** has one test: commit a projection if, and only if, a consumer reads it out of the repo. `plugin.json`, `hooks.json`, `marketplace.json`, a CLI manifest and compiled output a plugin ships, yes — the clone is the delivery mechanism, and Claude Code runs no install step. Rendered `docs/` and the marketplace's data files, no; both are git-ignored and built at deploy. The action stages every non-ignored change, so a build output you don't want committed belongs in `.gitignore`.
 
-**There is no drift gate, and nothing runs shipyard on a laptop.** A gate is what you build when the writer is a person with a local tool: CI can't produce the artifact, so it checks whether you remembered, and its failure message can only ever be *"run `generate` and commit"*.
+**There is no drift gate.** A gate is what you build when the writer is a person with a local tool: CI can't produce the artifact, so it checks whether you remembered, and its failure message can only ever be *"run `generate` and commit"*.
+
+## Debugging a red projection job
+
+Nothing *writes* an artifact from a laptop. Reading what CI would have written is a different thing, and it's what you want the moment the job goes red. shipyard declares a console script, so one command runs the same CLI the action runs, with no checkout and no install:
+
+```bash
+uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard generate
+git diff             # what CI would have pushed
+git restore .        # discard it; CI is still the only writer
+```
+
+`git restore` reverts the committed artifacts, which is all of them in a converted
+repo. The exception is the first run after a *new* projection lands: that artifact
+arrives untracked, so `git status` is what tells you it's there.
+
+Pin the same ref your workflows pin. Debugging a `@v2` job against `v1`'s generators reproduces the wrong shape, which is worse than not reproducing it at all.
+
+Not everything that reddens the job is reachable this way:
+
+| Failure | Reproduces locally |
+|---|---|
+| malformed `plugin.yml` or `hooks.yml`; a dead docs link; a CLI whose help the engine can't parse | yes, identically |
+| a missing resource path | only if you set `SHIPYARD_RESOURCES` by hand — it arrives as a workflow input, so the checkout doesn't carry it |
+| detached HEAD, a rejected push, a fork's read-only token | no, and it shouldn't. These live only in the job, and the action names the fix in its own error |
+
+`build-docs` writes into a git-ignored `docs/`, so rendering the site to look at it is safe in a way it wasn't when that output was committed:
+
+```bash
+uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard build-docs
+npx docsify-cli serve docs
+```
 
 ## The release flow
 
