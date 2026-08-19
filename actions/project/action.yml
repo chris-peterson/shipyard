@@ -1,0 +1,101 @@
+name: Project generated artifacts (shipyard)
+description: >-
+  Run every projector against the checked-out plugin and push the result to the
+  branch, so the diff a reviewer approves is the change that lands.
+
+# Every generated artifact has one writer, and this is it. A plugin's sources
+# are its record — plugin.yml, hooks/hooks.yml, the skills and rules themselves —
+# and the artifacts derived from them (plugin.json, hooks.json, suite.describe, a
+# CLI manifest) are projections. Committing a projection by hand makes a laptop
+# the writer, which is how hooks.json shipped out of step with hooks.yml.
+#
+# This is an action rather than a reusable workflow because the caller's own job
+# has to run first: a CLI manifest needs a built CLI to interrogate, and a plugin
+# with compiled output has to compile before that output can be projected. A
+# reusable workflow owns the whole job and can only take the build as a string
+# input to interpolate, which is both awkward and a script-injection surface.
+#
+# The caller must:
+#   * grant `contents: write` to the job
+#   * check out the head ref (`ref: ${{ github.head_ref }}` on pull_request),
+#     since the default checkout leaves a merge commit in detached HEAD and there
+#     is no branch there to push
+#   * run its own build before this step
+#
+# A fork's token is read-only, so the push fails and the check goes red. This is
+# a single-owner suite with no forks; a fork would need a different path.
+
+inputs:
+  message:
+    description: The commit subject for a projection this action has to push.
+    required: false
+    default: Project generated artifacts
+  resources:
+    description: >-
+      Newline-separated paths whose contents are published alongside docs/,
+      forwarded to build-docs. Empty uses shipyard's default (assets).
+    required: false
+    default: ''
+
+outputs:
+  pushed:
+    description: '`true` when a projection was committed and pushed.'
+    value: ${{ steps.project.outputs.pushed }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.x'
+    - run: pip install pyyaml
+      shell: bash
+
+    - name: Project source into artifacts
+      run: python3 -m shipyard generate
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.action_path }}/../../src
+        # By environment, not a run: interpolation — a workflow input expanded
+        # into a shell script is a script-injection vector.
+        SHIPYARD_RESOURCES: ${{ inputs.resources }}
+
+    - name: Commit and push the projection
+      id: project
+      shell: bash
+      env:
+        SHIPYARD_COMMIT_MESSAGE: ${{ inputs.message }}
+      run: |
+        set -euo pipefail
+
+        branch="$(git rev-parse --abbrev-ref HEAD)"
+        if [ "$branch" = "HEAD" ]; then
+          echo "::error::shipyard: HEAD is detached, so there is no branch to" \
+               "push a projection to. Check out the head ref — on pull_request," \
+               "actions/checkout needs 'ref: \${{ github.head_ref }}'." >&2
+          exit 1
+        fi
+
+        # -A over a named path list: a projection's paths are shipyard's to
+        # change, and enumerating them here would make every new artifact a
+        # change to every caller. Ignored files are skipped, so build output a
+        # repo doesn't track stays out — which is where .gitignore already says
+        # it belongs.
+        git add -A
+        if git diff --cached --quiet; then
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+          echo "shipyard: artifacts already match their source."
+          exit 0
+        fi
+
+        git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "$SHIPYARD_COMMIT_MESSAGE"
+
+        # No force and no lease: an author who pushed while this ran gets a
+        # rejected fast-forward, and their push carries a run that redoes the
+        # projection. The rerun this push triggers finds nothing to project and
+        # pushes nothing, so it terminates on its own.
+        git push origin "HEAD:$branch"
+        echo "pushed=true" >> "$GITHUB_OUTPUT"
+        echo "shipyard: pushed a projection to $branch."

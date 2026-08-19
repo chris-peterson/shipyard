@@ -28,31 +28,27 @@ flowchart TB
 
 anchor's `scripts/` held `gen-plugin-json.py`, `gen-suite-json.py`, `changelog-prepend.py`, and `copy-skill-docs.sh`; its `plugin.yml` carried a hand-written `describe:` block.
 
-## After: fetch shipyard, call it
+## After: CI calls shipyard
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
 flowchart TB
   SY["shipyard (this repo)"]
   subgraph anchor
-    w["scripts/shipyard (wrapper)"]
     cw["thin workflow callers"]
   end
   subgraph beacon
-    w2["scripts/shipyard"]
     cw2["thin workflow callers"]
   end
-  subgraph "six more plugins"
-    w3["scripts/shipyard"]
+  subgraph "the rest of the suite"
+    cw3["thin workflow callers"]
   end
-  w --> SY
   cw --> SY
-  w2 --> SY
   cw2 --> SY
-  w3 --> SY
+  cw3 --> SY
 ```
 
-The four scripts are gone; `scripts/shipyard` and three one-line workflow callers replace them. The conversion was a **net −188 lines** in anchor.
+The four scripts are gone, replaced by one-line workflow callers. Nothing in the plugin runs shipyard: the projection job does, on every push, and commits what it wrote back to the branch.
 
 ## The `describe` is now derived, not written
 
@@ -83,9 +79,9 @@ PreToolUse→watchdog (Bash, Write|Edit); SessionStart→cli-freshness, emit-rul
 ## Converting your own plugin
 
 1. Declare hooks in `hooks/hooks.yml` (`event`, `matcher?`, `command`, `description`); `gen-hooks-json` generates `hooks.json`.
-2. Copy `scripts/shipyard` and the three workflow callers from anchor; point them at `@main`.
-3. Delete the local build scripts; wire `justfile` and the pre-commit hook to the wrapper.
-4. Run `shipyard gen-describe`, `shipyard gen-plugin-json`, `shipyard build-docs`, and confirm `shipyard generate --dry-run` runs clean.
-5. Open the PR — the reusable `preview` workflow validates the source and posts the pending projection in CI.
+2. Copy the workflow callers from anchor, pinned at `@v2` — the projection shape doesn't exist on the `v1` line. The projection caller grants its job `contents: write`, checks out the head ref, and runs the plugin's own build before shipyard's [`project` action](how-it-works.md#the-projection-job).
+3. Delete the local build scripts, and any `just` target or pre-commit hook that ran one — CI is the writer now.
+4. Git-ignore what the projection doesn't commit (rendered `docs/`), so the action doesn't stage it.
+5. Open the PR. The projection job pushes the regenerated artifacts onto your branch, so the first thing to review is what it wrote.
 
-Not every plugin fits the generic renderer. A plugin with a bespoke docs pipeline can use shipyard for only the generators, preview, and release and keep its own rendering — a deliberate per-plugin exception.
+Not every plugin fits the generic renderer. A plugin with a bespoke docs pipeline can use shipyard for only the generators and release and keep its own rendering — a deliberate per-plugin exception.

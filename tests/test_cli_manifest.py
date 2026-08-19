@@ -289,11 +289,11 @@ def test_a_cli_that_failed_to_start_reports_its_own_error(tmp_path):
 
 def test_an_aggregate_repo_declares_no_cli(tmp_path):
     """An aggregator carries plugins.yml and no plugin.yml, so asking it for a
-    `cli:` block would fail its preview rather than skip it."""
+    `cli:` block would fail its projection rather than skip it."""
     (tmp_path / "plugins.yml").write_text("name: hub\nplugins: []\n")
 
     assert gen_cli_manifest.build(tmp_path) is None
-    assert gen_cli_manifest.check(tmp_path) == 0
+    assert gen_cli_manifest.run(tmp_path) == 0
 
 
 def test_help_printed_to_stderr_is_still_read(tmp_path):
@@ -303,57 +303,7 @@ def test_help_printed_to_stderr_is_still_read(tmp_path):
     assert _command(_manifest(root), "init")["name"] == "init"
 
 
-# ---- the drift gate --------------------------------------------------------
-
-def test_check_passes_when_the_committed_manifest_matches(tmp_path):
-    root = _plugin(tmp_path)
-    gen_cli_manifest.run(root)
-
-    assert gen_cli_manifest.check(root) == 0
-
-
-def test_check_fails_and_names_the_flag_that_moved(tmp_path, capsys):
-    root = _plugin(tmp_path)
-    gen_cli_manifest.run(root)
-    (root / "cli.py").write_text(
-        "import sys\nsys.stdout.write(%r)\n" % HELP.replace("[--all]", "[--every]"))
-
-    assert gen_cli_manifest.check(root) == 1
-    out = capsys.readouterr().out
-    assert "  - demo status [<slug>] [--all]" in out
-    assert "  + demo status [<slug>] [--every]" in out
-
-
-def test_check_is_a_no_op_for_a_repo_with_no_cli(tmp_path):
-    assert gen_cli_manifest.check(_plugin(tmp_path, cli_block=False)) == 0
-
-
-def test_check_names_a_dropped_subcommand_by_its_full_path(tmp_path, capsys):
-    root = _plugin(tmp_path)
-    gen_cli_manifest.run(root)
-    (root / "cli.py").write_text(
-        "import sys\nsys.stdout.write(%r)\n"
-        % HELP.replace("  demo link rm <slug> <url>\n", ""))
-
-    assert gen_cli_manifest.check(root) == 1
-    assert "  - demo link rm <slug> <url>" in capsys.readouterr().out
-
-
-def test_check_does_not_claim_a_grammar_change_when_no_form_moved(tmp_path, capsys):
-    """A reworded summary drifts the manifest without touching the contract.
-    Announcing a grammar change sends the reader hunting for a move that the
-    empty form list has already ruled out."""
-    root = _plugin(tmp_path)
-    gen_cli_manifest.run(root)
-    (root / "cli.py").write_text(
-        "import sys\nsys.stdout.write(%r)\n"
-        % HELP.replace("Find by URL", "Look up by URL"))
-
-    assert gen_cli_manifest.check(root) == 1
-    out = capsys.readouterr().out
-    assert "every invocation form it documents is unchanged" in out
-    assert "the CLI's grammar has changed" not in out
-
+# ---- the projection --------------------------------------------------------
 
 def test_generate_writes_the_manifest(tmp_path):
     root = _plugin(tmp_path)
@@ -361,17 +311,6 @@ def test_generate_writes_the_manifest(tmp_path):
 
     assert cli.main(["generate", "--root", str(root)]) == 0
     assert (root / "spec" / "v1" / "cli.yml").exists()
-
-
-def test_generate_dry_run_does_not_run_the_cli(tmp_path):
-    """Preview reads files this checkout already has. The CLI manifest is the one
-    projection whose source is a running program, which a preview job has no
-    toolchain to build — so an unrunnable CLI must not fail the preview. Its
-    drift is `--check`'s job."""
-    root = _plugin(tmp_path)
-    (root / "cli.py").unlink()
-
-    assert cli.main(["generate", "--root", str(root), "--dry-run"]) == 0
 
 
 # ---- the reference page ----------------------------------------------------

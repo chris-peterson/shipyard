@@ -212,15 +212,6 @@ def test_missing_marketplace_identity_is_an_error(hub):
         gen_marketplace_json.build(hub)
 
 
-def test_preview_diffs_the_committed_manifest(hub):
-    gen_marketplace_json.run(hub)
-    assert gen_marketplace_json.preview(hub) == ""
-    write_spoke(hub, "anchor", spoke(description="Reworded upstream."))
-    preview = gen_marketplace_json.preview(hub)
-    assert "+" + '      "description": "Reworded upstream.",' in preview
-    assert ".claude-plugin/marketplace.json" in preview
-
-
 # ---- docs/plugins.js --------------------------------------------------------
 
 def test_plugins_js_projects_the_suite_block_plus_version(hub):
@@ -317,12 +308,6 @@ def test_generate_dispatches_on_the_manifest_at_the_root(hub):
     assert (hub / ".claude-plugin" / "marketplace.json").exists()
     assert (hub / "docs" / "plugins.js").exists()
     assert (hub / "docs" / "deps.json").exists()
-
-
-def test_generate_dry_run_writes_nothing(hub):
-    assert cli.main(["generate", "--root", str(hub), "--dry-run"]) == 0
-    assert not (hub / ".claude-plugin").exists()
-    assert not (hub / "docs").exists()
 
 
 def test_roster_command_prints_tab_separated_pairs(hub, capsys):

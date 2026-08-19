@@ -14,7 +14,7 @@ import json
 import pathlib
 
 from ._aggregate import MANIFEST, as_object, load_manifest, load_spoke, roster
-from ._common import diff, plugin_root
+from ._common import plugin_root
 
 SCHEMA = "https://anthropic.com/claude-code/marketplace.schema.json"
 
@@ -58,15 +58,6 @@ def build(root: str | pathlib.Path | None = None) -> str:
 
 def _target(root: str | pathlib.Path | None = None) -> pathlib.Path:
     return plugin_root(root) / ".claude-plugin" / "marketplace.json"
-
-
-def preview(root: str | pathlib.Path | None = None) -> str:
-    """The diff the next `generate` would apply. Calling build() first surfaces
-    a malformed roster or an unsynced spoke as a hard error."""
-    generated = build(root)
-    target = _target(root)
-    current = target.read_text() if target.exists() else ""
-    return diff(target, current, generated, root)
 
 
 def run(root: str | pathlib.Path | None = None) -> int:

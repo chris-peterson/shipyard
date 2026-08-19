@@ -26,7 +26,7 @@ import pathlib
 
 import yaml
 
-from ._common import diff, plugin_root
+from ._common import plugin_root
 
 
 def hooks_yml_path(root: str | pathlib.Path | None = None) -> pathlib.Path:
@@ -56,16 +56,6 @@ def build(root: str | pathlib.Path | None = None) -> str:
             arr.append(group)
         out[event] = arr
     return json.dumps({"hooks": out}, indent=2) + "\n"
-
-
-def preview(root: str | pathlib.Path | None = None) -> str:
-    # a plugin with no hooks.yml isn't on this model yet — nothing to preview
-    if not hooks_yml_path(root).exists():
-        return ""
-    generated = build(root)
-    target = plugin_root(root) / "hooks" / "hooks.json"
-    current = target.read_text() if target.exists() else ""
-    return diff(target, current, generated, root)
 
 
 def run(root: str | pathlib.Path | None = None) -> int:

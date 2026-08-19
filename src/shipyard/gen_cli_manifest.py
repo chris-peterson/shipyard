@@ -40,7 +40,7 @@ import subprocess
 
 import yaml
 
-from ._common import diff, load_plugin, plugin_root
+from ._common import load_plugin, plugin_root
 
 SCHEMA_URL = "https://chris-peterson.github.io/shipyard/cli-manifest.v1.json"
 FORMAT_VERSION = 1
@@ -441,58 +441,6 @@ def build(root: str | pathlib.Path | None = None) -> str | None:
 def target(root: str | pathlib.Path | None = None) -> pathlib.Path | None:
     spec = _cli_spec(root)
     return None if spec is None else plugin_root(root) / spec["manifest"]
-
-
-def _forms(manifest: dict) -> list[str]:
-    """Every invocation form the manifest documents, as a usage line. A form
-    carries its whole command path, so a set difference over these localizes a
-    change the way a YAML diff can't: `--to-link` vanishing shows up as the
-    `deliverable rm` line that lost it, not as an unattributed removed line
-    several levels below the command it belongs to."""
-    program = manifest.get("name", "")
-    lines = [_render_usage(program, [], u) for u in manifest.get("usages") or []]
-    for command in manifest.get("commands") or []:
-        _render_command(program, command, [], lines)
-    return [l for l in lines if not l.startswith(" ")]
-
-
-def check(root: str | pathlib.Path | None = None) -> int:
-    """Fail when the committed manifest no longer matches the CLI. Unlike the
-    release-committed artifacts — which are expected to trail their source
-    between releases — the grammar is the contract under review, so its drift
-    belongs in the PR that caused it."""
-    generated = build(root)
-    if generated is None:
-        return 0
-    path = target(root)
-    current = path.read_text() if path.exists() else ""
-    if current == generated:
-        return 0
-
-    was = _forms(yaml.safe_load(current) or {}) if current else []
-    now = _forms(yaml.safe_load(generated))
-    gone = [f for f in was if f not in now]
-    added = [f for f in now if f not in was]
-    if gone or added:
-        print("shipyard: the CLI's grammar has changed and the committed "
-              "manifest hasn't.\n")
-        for form in gone:
-            print(f"  - {form}")
-        for form in added:
-            print(f"  + {form}")
-        print(f"\n{diff(path, current, generated, root)}")
-        print("Re-record it with `shipyard gen-cli-manifest`, and review the "
-              "diff — it is a change to the CLI's public contract.")
-        return 1
-    # Every invocation form still matches, so whatever moved is a summary, an
-    # ordering, or shipyard's own framing of the file. Saying "the grammar has
-    # changed" here would send a reader hunting for a contract change that the
-    # empty form list has already ruled out.
-    print("shipyard: the committed CLI manifest is out of date, though every "
-          "invocation form it documents is unchanged.\n")
-    print(f"{diff(path, current, generated, root)}")
-    print("Re-record it with `shipyard gen-cli-manifest`.")
-    return 1
 
 
 def run(root: str | pathlib.Path | None = None) -> int:
