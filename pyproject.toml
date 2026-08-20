@@ -3,7 +3,7 @@ name = "shipyard"
 # The version CI bumps at release, the way it bumps a plugin's `plugin.yml`.
 # Seeded at 1.0.0 for the line the `v1` tag already names, so the first release
 # off this branch is the major that produces `v2.0.0`.
-version = "1.0.0"
+version = "2.0.0"
 description = "Consistent build tooling for chris-peterson's Claude Code plugins"
 requires-python = ">=3.10"
 dependencies = [
