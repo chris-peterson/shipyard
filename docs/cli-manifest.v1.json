@@ -4,7 +4,12 @@
   "title": "shipyard CLI manifest",
   "description": "A CLI's command and flag grammar, recorded from the running binary by `shipyard gen-cli-manifest`. The manifest asserts what the CLI *documents* in its help output, which is not necessarily everything it accepts. It is a recording, never hand-edited: the generator rewrites it wholesale.",
   "type": "object",
-  "required": ["version", "name", "engine", "commands"],
+  "required": [
+    "version",
+    "name",
+    "engine",
+    "commands"
+  ],
   "additionalProperties": false,
   "properties": {
     "schema": {
@@ -31,32 +36,102 @@
       "$ref": "#/$defs/usages",
       "description": "Invocation forms that take no command word, such as `--version`."
     },
-    "commands": { "$ref": "#/$defs/commands" }
+    "commands": {
+      "$ref": "#/$defs/commands"
+    },
+    "lede": {
+      "type": "string",
+      "description": "Prose a reader needs before the first command. Declared in plugin.yml's `cli:` block, because help output has nowhere to put it."
+    },
+    "groups": {
+      "type": "array",
+      "description": "The reference page's sections, in order. Declared in plugin.yml. The generator refuses a group naming a command the CLI doesn't document, and refuses a documented command that no group lists \u2014 so this covers every entry in `commands` exactly once.",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "commands"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "about": {
+            "type": "string"
+          },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "examples": {
+      "type": "object",
+      "description": "Worked examples keyed by command name, declared in plugin.yml. A command with no entry simply has none.",
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "run"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "run": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            },
+            "out": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
   },
   "$defs": {
     "commands": {
       "type": "array",
       "description": "Commands in the order the CLI documents them. Help order is part of the recording: re-sorting would make every reordering of the help text a no-op diff and every real move invisible.",
-      "items": { "$ref": "#/$defs/command" }
+      "items": {
+        "$ref": "#/$defs/command"
+      }
     },
     "command": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string",
           "description": "The command word verbatim. For a documented alternation (`install|uninstall|status`) this is the raw text and `choices` carries the parsed alternatives."
         },
-        "choices": { "$ref": "#/$defs/choices" },
-        "usages": { "$ref": "#/$defs/usages" },
-        "subcommands": { "$ref": "#/$defs/commands" }
+        "choices": {
+          "$ref": "#/$defs/choices"
+        },
+        "usages": {
+          "$ref": "#/$defs/usages"
+        },
+        "subcommands": {
+          "$ref": "#/$defs/commands"
+        }
       }
     },
     "usages": {
       "type": "array",
       "description": "The invocation forms documented for this command. More than one entry means the CLI documents genuinely different forms (`find --url` vs `find --path`), not a formatting artifact.",
-      "items": { "$ref": "#/$defs/usage" }
+      "items": {
+        "$ref": "#/$defs/usage"
+      }
     },
     "usage": {
       "type": "object",
@@ -64,35 +139,49 @@
       "properties": {
         "summary": {
           "type": "string",
-          "description": "The trailing prose on the usage line, verbatim and unparsed — help text is a lossy source and splitting a description from a parenthetical note would be guessing."
+          "description": "The trailing prose on the usage line, verbatim and unparsed \u2014 help text is a lossy source and splitting a description from a parenthetical note would be guessing."
         },
         "args": {
           "type": "array",
-          "items": { "$ref": "#/$defs/arg" }
+          "items": {
+            "$ref": "#/$defs/arg"
+          }
         },
         "flags": {
           "type": "array",
-          "items": { "$ref": "#/$defs/flag" }
+          "items": {
+            "$ref": "#/$defs/flag"
+          }
         }
       }
     },
     "arg": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string",
           "description": "The placeholder name with its brackets stripped. For an alternation this is the raw text and `choices` carries the alternatives."
         },
-        "choices": { "$ref": "#/$defs/choices" },
-        "optional": { "$ref": "#/$defs/flagTrue" },
-        "repeatable": { "$ref": "#/$defs/flagTrue" }
+        "choices": {
+          "$ref": "#/$defs/choices"
+        },
+        "optional": {
+          "$ref": "#/$defs/flagTrue"
+        },
+        "repeatable": {
+          "$ref": "#/$defs/flagTrue"
+        }
       }
     },
     "flag": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
         "name": {
@@ -104,12 +193,18 @@
           "type": "string",
           "description": "The argument placeholder. Absent means the flag is a boolean switch."
         },
-        "required": { "$ref": "#/$defs/flagTrue" },
-        "repeatable": { "$ref": "#/$defs/flagTrue" },
+        "required": {
+          "$ref": "#/$defs/flagTrue"
+        },
+        "repeatable": {
+          "$ref": "#/$defs/flagTrue"
+        },
         "exclusive_with": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "The sibling flags this one is documented as mutually exclusive with. Named rather than numbered so the relation survives a reordering of the group."
         }
       }
@@ -117,7 +212,9 @@
     "choices": {
       "type": "array",
       "minItems": 2,
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "The documented alternatives, split on `|`."
     },
     "flagTrue": {

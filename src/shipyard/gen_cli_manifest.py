@@ -434,8 +434,111 @@ def build(root: str | pathlib.Path | None = None) -> str | None:
     if body["usages"]:
         manifest["usages"] = body["usages"]
     manifest["commands"] = body["commands"]
+    # After `commands`, so the checks below can name what the recording found.
+    manifest.update(_presentation(spec, body["commands"]))
     return HEADER + yaml.safe_dump(
         manifest, sort_keys=False, allow_unicode=True, width=10_000)
+
+
+def _presentation(spec: dict, commands: list[dict]) -> dict:
+    """The declared organisation of the reference page, checked against what the
+    CLI actually documents.
+
+    Grammar and organisation have different sources and neither can supply the
+    other. `--help` knows every command and flag but nothing about which belong
+    together, what a worked example looks like, or what a reader needs to know
+    before the first one. A person knows all three and cannot be trusted to keep
+    a list of commands current — the page this replaces was missing three,
+    including a whole `repo` family that shipped a release earlier.
+
+    So the recording stays the authority on *what exists*, `plugin.yml` declares
+    *how it reads*, and this function refuses any disagreement between them. A
+    command in no group is the failure that matters: it's how a new one goes
+    undocumented, and it's the check no hand-written page can perform on itself.
+    """
+    recorded = [c["name"] for c in commands]
+    out: dict = {}
+
+    if lede := spec.get("lede"):
+        if not isinstance(lede, str):
+            raise SystemExit(
+                "shipyard gen-cli-manifest: plugin.yml `cli: lede:` must be text")
+        out["lede"] = lede.strip()
+
+    groups = spec.get("groups")
+    if groups is not None:
+        if not isinstance(groups, list):
+            raise SystemExit(
+                "shipyard gen-cli-manifest: plugin.yml `cli: groups:` must be a list")
+        seen: dict[str, str] = {}
+        rendered = []
+        for entry in groups:
+            if not isinstance(entry, dict) or not entry.get("name"):
+                raise SystemExit(
+                    "shipyard gen-cli-manifest: each `cli: groups:` entry needs a "
+                    f"`name:`, got {entry!r}")
+            members = entry.get("commands") or []
+            if not isinstance(members, list):
+                raise SystemExit(
+                    f"shipyard gen-cli-manifest: group {entry['name']!r} `commands:` "
+                    "must be a list of command names")
+            for name in members:
+                if name not in recorded:
+                    raise SystemExit(
+                        f"shipyard gen-cli-manifest: group {entry['name']!r} lists "
+                        f"{name!r}, which the CLI's help doesn't document. The "
+                        "recording is the authority on what exists.")
+                if name in seen:
+                    raise SystemExit(
+                        f"shipyard gen-cli-manifest: {name!r} is in both "
+                        f"{seen[name]!r} and {entry['name']!r}; a command belongs to "
+                        "one group.")
+                seen[name] = entry["name"]
+            group = {"name": entry["name"], "commands": list(members)}
+            if about := entry.get("about"):
+                group["about"] = str(about).strip()
+            rendered.append(group)
+
+        if ungrouped := [c for c in recorded if c not in seen]:
+            raise SystemExit(
+                "shipyard gen-cli-manifest: the CLI documents commands that no "
+                f"group lists: {', '.join(ungrouped)}. Add them to a `cli: groups:` "
+                "entry — an ungrouped command is one the reference page would "
+                "silently omit.")
+        out["groups"] = rendered
+
+    examples = spec.get("examples")
+    if examples is not None:
+        if not isinstance(examples, dict):
+            raise SystemExit(
+                "shipyard gen-cli-manifest: plugin.yml `cli: examples:` must map a "
+                "command name to its examples")
+        rendered_ex: dict[str, list] = {}
+        for name, items in examples.items():
+            if name not in recorded:
+                raise SystemExit(
+                    f"shipyard gen-cli-manifest: `cli: examples:` names {name!r}, "
+                    "which the CLI's help doesn't document")
+            if not isinstance(items, list) or not items:
+                raise SystemExit(
+                    f"shipyard gen-cli-manifest: examples for {name!r} must be a "
+                    "non-empty list")
+            built = []
+            for item in items:
+                if not isinstance(item, dict) or not item.get("run"):
+                    raise SystemExit(
+                        f"shipyard gen-cli-manifest: each example for {name!r} needs "
+                        f"a `run:`, got {item!r}")
+                example = {"run": str(item["run"]).strip()}
+                if note := item.get("note"):
+                    example["note"] = str(note).strip()
+                if out_text := item.get("out"):
+                    example["out"] = str(out_text).rstrip()
+                built.append(example)
+            rendered_ex[name] = built
+        out["examples"] = rendered_ex
+
+    return out
 
 
 def target(root: str | pathlib.Path | None = None) -> pathlib.Path | None:
@@ -528,28 +631,67 @@ def _render_command(program: str, command: dict, path: list[str], out: list[str]
         _render_command(program, sub, here, out)
 
 
+def _render_entry(program: str, command: dict, examples: dict, depth: int) -> list[str]:
+    forms: list[str] = []
+    _render_command(program, command, [], forms)
+    lines = [f"{'#' * depth} `{program} {command['name']}`", "",
+             "```text", *forms, "```", ""]
+    for example in examples.get(command["name"], []):
+        if note := example.get("note"):
+            lines += [note, ""]
+        lines += ["```bash", example["run"], "```", ""]
+        if out := example.get("out"):
+            lines += ["```text", out, "```", ""]
+    return lines
+
+
 def render_markdown(manifest: dict, source: str) -> str:
     """The manifest as a command reference page. `source` names the manifest the
     page was rendered from, so a reader who spots something wrong knows the page
-    is a projection and where the truth lives."""
+    is a projection and where the truth lives.
+
+    Grouping, the lede, and the examples are the declared half of the manifest —
+    they come from `plugin.yml`, because help output has no way to express them.
+    Without them the page is a flat alphabet of commands, which is complete and
+    unreadable; with them it's the page a person would have written, except that
+    it can't omit a command or drift from the binary."""
     program = manifest["name"]
+    groups = manifest.get("groups") or []
+    examples = manifest.get("examples") or {}
+
     lines = [f"# {program}", ""]
     if summary := manifest.get("summary"):
         lines += [summary, ""]
     lines += [
         f"<!-- Generated by shipyard from {source} — do not edit by hand. -->",
         "",
-        f"The command and flag grammar `{program}` documents in its own help "
-        "output. It records what the CLI documents, which is not necessarily "
-        "everything it accepts.",
+    ]
+    if lede := manifest.get("lede"):
+        lines += [lede, ""]
+    lines += [
+        f"Every command `{program}` documents in its own help output. It records "
+        "what the CLI documents, which is not necessarily everything it accepts.",
         "",
     ]
     for usage in manifest.get("usages") or []:
         lines += ["```text", _render_usage(program, [], usage), "```", ""]
-    for command in manifest.get("commands") or []:
-        forms: list[str] = []
-        _render_command(program, command, [], forms)
-        lines += [f"## `{program} {command['name']}`", "", "```text", *forms, "```", ""]
+
+    commands = {c["name"]: c for c in manifest.get("commands") or []}
+    if not groups:
+        for command in commands.values():
+            lines += _render_entry(program, command, examples, depth=2)
+        return "\n".join(lines)
+
+    # Grouped: `##` per group so a sidebar can link a section, `###` per command
+    # beneath it. The generator has already refused any group naming a command
+    # the recording doesn't have, and any recorded command no group lists, so
+    # this walk covers every command exactly once without checking again.
+    for group in groups:
+        lines += [f"## {group['name']}", ""]
+        if about := group.get("about"):
+            lines += [about, ""]
+        for name in group["commands"]:
+            lines += _render_entry(program, commands[name], examples, depth=3)
     return "\n".join(lines)
 
 

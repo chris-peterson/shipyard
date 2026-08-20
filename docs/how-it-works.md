@@ -35,6 +35,28 @@ Each generator reads a plugin's canonical source and writes a committed artifact
     manifest: spec/v1/cli.yml    # where the recording lands
   ```
 
+  **Grammar and organisation have different sources, and the manifest carries both.** Help output knows every command and flag, and nothing about which ones belong together, what a worked example looks like, or what a reader needs to know before the first one. A person knows all three, and can't be trusted to keep a list of commands current — the hand-written page this replaced in tack was missing three of thirty-five, including a whole `repo` family that had shipped a release. So the same block declares how the reference reads:
+
+  ```yaml
+  cli:
+    lede: |
+      Tack ids display as `t<N>`; the bare number works too.
+    groups:
+      - name: Routes
+        about: Making and inspecting routes.
+        commands: [init, rename, list, tree]
+      - name: Tacks
+        commands: [add, edit, start, done]
+    examples:
+      tree:
+        - run: tack tree '*/*/deliverable'
+          note: All deliverables (`**` matches across levels).
+  ```
+
+  **The generator refuses any disagreement between the two.** A group naming a command the help doesn't document is an error, and so is a documented command that no group lists. That second check is the one that pays: an ungrouped command is one the page would silently omit, which is exactly how the hand-written page lost `repo`. It's also the check no hand-written page can perform on itself.
+
+  Declaring nothing is fine — the page is then a flat list of every command, which is complete but not organised. Every manifest written before these fields existed stays valid, so the published schema is still `v1`.
+
   `invoke` keeps shipyard engine-agnostic about *running* a CLI — it shells out to whatever you declare — while `engine` picks the parser, since a framework's help format is its own. A plugin that declares no `cli:` block is unaffected.
 
   Two things follow from the manifest being a recording of help output. It asserts what the CLI *documents*, which is not the same claim as what it accepts — a flag absent from `--help` is absent here. And it's never hand-edited: each run rewrites it, and a CLI whose help the engine can't parse fails the generator instead of writing a half-manifest, which would read exactly like a CLI that dropped half its commands.
