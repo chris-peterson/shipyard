@@ -1,48 +1,58 @@
 # Cutting a release
 
-Releasing is one `workflow_dispatch` whose only input is the bump level. CI derives the version, retitles the notes you already wrote, commits, tags that commit, and publishes. See [the release flow](how-it-works.md#the-release-flow) for the sequence.
+Releasing is one `workflow_dispatch` whose only input is the bump level. CI derives the version, retitles the notes, commits, tags that commit, and publishes. See [the release flow](how-it-works.md#the-release-flow) for the sequence.
 
 This page is the contract for whoever drives it, because it is rarely the same *whoever* twice: a maintainer from the terminal one week, an agent from a different harness the next. Anything a harness would otherwise have to remember on its own lives here.
 
-## Notes are written as work lands, not at release time
+## Writing the notes is the release
 
-`CHANGELOG.md` is the source. Keep a leading `## Unreleased` section and write into it in the same change request as the work it describes:
+Releasing is one sitting, and it starts before the dispatch:
+
+```bash
+git log <last-tag>..main --no-merges
+```
+
+Read what landed, write it up under `## Unreleased` in `CHANGELOG.md`, commit that, then dispatch with the bump the notes imply. **The bump follows from the notes, not the other way around** — you can't know whether a release is major, minor, or patch until you've read what's in it, and that is the same reading that produces the notes. One judgment, so it happens at one time.
 
 ```markdown
 # Changelog
 
 ## Unreleased
 
-- Reconcile a staged `## Unreleased` section instead of prepending beside it
+### Added
+- The thing, described by what it does for someone using this
+
+### Fixed
+- The bug, described by what stopped happening
 
 ## 1.1.0
-
 - …
 ```
 
-Two things follow. The notes get **reviewed**, in the diff next to the code they describe, instead of being composed from memory by whoever happens to cut the release. And the release body becomes a projection of this file rather than its source, so the two cannot disagree.
+Writing them together is also what lets them be *shaped*. A release read whole can be grouped, and can carry a migration section; notes accrued one commit at a time arrive in commit order, and nobody goes back to reorganize them.
 
-**No section, no release.** A missing or empty `## Unreleased` fails the run. That is deliberate: a tag naming a version whose changelog entry says nothing cannot be fixed afterwards without moving the tag.
+**No section, no release.** A missing or empty `## Unreleased` fails the run. A tag naming a version whose changelog entry says nothing cannot be fixed afterwards without moving the tag.
 
 ## Driving it
 
-1. Check that `## Unreleased` says what you want the release to say. That text *is* the release body.
-2. Run the repo's release workflow, choosing `major`, `minor`, or `patch`.
-3. Nothing else. Don't bump the version, don't retitle the section, don't create the tag or the release.
+1. `git log <last-tag>..main` — read what landed.
+2. Write the `## Unreleased` section. Commit and push it.
+3. Dispatch the release workflow, choosing `major`, `minor`, or `patch`.
+4. Nothing else. Don't bump the version, don't retitle the section, don't create the tag or the release.
 
-The bump level rather than a literal version removes the class of typo where the tag and the version disagree, and it is the input you can supply without looking anything up.
+Step 2 being its own commit is what gets the notes reviewed: a diff you look at before releasing, rather than prose composed in a dispatch form and seen by nobody.
 
 ## What the workflow owns
 
 Doing any of these by hand lands a second, conflicting commit — or a tag that disagrees with what is in it:
 
-- **The version.** Derived by bumping what `plugin.yml` already says.
-- **The `## <version>` heading.** `shipyard release` retitles your staged section in place. Nothing else writes a heading, which is why a duplicated one is now impossible rather than something the parser tolerates.
+- **The version.** Derived by bumping what `plugin.yml` already records.
+- **The `## <version>` heading.** `shipyard release` retitles your section in place. Nothing else writes a heading, which is why a duplicated one is impossible rather than something the parser tolerates.
 - **The generated artifacts**, resynced as a backstop. The projection job already committed them when the source changed, so a release ordinarily finds nothing to resync.
-- **The commit, then the tag on it,** in that order. The tag names a commit that already carries its own version — so `plugin.json` at the tag reports the version the tag names.
+- **The commit, then the tag on it,** in that order — so the artifacts at the tag report the version the tag names.
 - **The GitHub Release**, published with the changelog section as its body.
 - **The marketplace rebuild.**
 
-## After it runs
+## Notes written earlier
 
-Open a fresh `## Unreleased` section when you next have something to note. Don't leave an empty one behind: an empty section and a missing one both fail the next release, and the empty one reads like it was meant to be filled.
+Nothing stops a change from adding to `## Unreleased` when it lands, and nothing checks that it did — the section only has to exist and say something at release time. Worth doing for a change whose *why* would be hard to reconstruct later, or where whoever releases won't be whoever wrote it. The default is release time, because that is when the whole shape is visible and when the bump has to be decided anyway.

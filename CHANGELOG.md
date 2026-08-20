@@ -1,8 +1,9 @@
 # Changelog
 
-What changed for a repo that calls shipyard's workflows and actions. Written as
-work lands, under `## Unreleased`; the release retitles that section and
-publishes it as the release body, so this file and the release say one thing.
+What changed for a repo that calls shipyard's workflows and actions. Written
+under `## Unreleased` when cutting a release; the release retitles that section
+and publishes it as the release body, so this file and the release say one thing.
+See [Cutting a release](https://chris-peterson.github.io/shipyard/#/releasing).
 
 shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 `vX.Y.Z` is immutable; `vX` moves to the newest release on its line. Two majors

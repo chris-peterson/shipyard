@@ -13,9 +13,10 @@ name: Release (shipyard)
 # naming it — plugin.json at the tag reported the previous version. Deriving the
 # version here means the tag is cut from a commit that already carries it.
 #
-# Notes come from CHANGELOG.md, written in the CR alongside the change they
-# describe. Nothing but shipyard supplies a heading, so the duplicate-heading
-# class the release body used to produce is unreachable rather than tolerated.
+# Notes come from CHANGELOG.md, committed before the dispatch — reading what
+# landed is what tells you the bump, so the notes and the level are one judgment.
+# Nothing but shipyard supplies a heading, so the duplicate-heading class the
+# release body used to produce is unreachable rather than tolerated.
 #
 # The caller must pass `secrets: inherit` so MARKETPLACE_DISPATCH_TOKEN — a token
 # allowed to repository_dispatch to chris-peterson/claude-marketplace — reaches

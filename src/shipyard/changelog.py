@@ -1,9 +1,14 @@
 """CHANGELOG.md, read and written as the release's source of record.
 
-Notes are staged under `## Unreleased` as work lands, in the change's own review
-where someone can argue with them. The release retitles that section to
-`## <version>` and publishes its content, so the file and the release say one
-thing and neither is composed from memory at publish time.
+Notes go under `## Unreleased`, and the release retitles that section to
+`## <version>` and publishes its content — so the file and the release say one
+thing, and neither is composed in a form field nobody reviews.
+
+Writing them is part of releasing rather than a per-change chore. The bump level
+can't be chosen without reading what landed, and that reading is what produces the
+notes; splitting the two means deciding the version with the reasoning forgotten.
+Nothing here enforces when they're written, only that the section says something
+by the time a release reads it.
 
 That direction is the whole point. The release body used to be authored outside
 the repo and proxied inward, which made it the source: nothing constrained its
@@ -60,8 +65,9 @@ def staged(root: str | pathlib.Path | None = None) -> str:
     idx = _staged_index(lines)
     if idx is None:
         raise SystemExit(
-            f"shipyard: {path} has no leading `## Unreleased` section. Notes are "
-            "written there as work lands, and the release reads them from it.")
+            f"shipyard: {path} has no leading `## Unreleased` section. Write the "
+            "notes for this release there first — reading what landed is also how "
+            "you pick the bump.")
     body = "\n".join(lines[idx + 1:_section_end(lines, idx)]).strip()
     if not body:
         raise SystemExit(

@@ -206,7 +206,9 @@ sequenceDiagram
 
 **The commit precedes the tag, and that ordering is the fix.** The trigger used to be `release: published`, so a human cut the tag before any of this ran and the bump commit always landed after the tag naming it. `plugin.json` at a tag reported the *previous* version, and the changelog at that tag had no section for it. Deriving the version here means the tag names a commit that already carries it.
 
-**`CHANGELOG.md` is the source, not a destination.** The release body used to be authored outside the repo at publish time, which made it the source and left nothing constraining its shape — across the suite it took at least three incompatible forms, each now permanent in some changelog. Reading the notes out of the file makes a duplicated or mismatched heading unreachable rather than a shape the parser has to tolerate, and it means the notes were reviewed in the diff beside the change they describe.
+**`CHANGELOG.md` is the source, not a destination.** The release body used to be authored outside the repo at publish time, which made it the source and left nothing constraining its shape — across the suite it took at least three incompatible forms, each now permanent in some changelog. Reading the notes out of the file makes a duplicated or mismatched heading unreachable rather than a shape the parser has to tolerate, and it puts them in a commit someone looks at before releasing rather than in a form field nobody does.
+
+Writing them is part of releasing, not a per-change chore. The bump level can't be chosen without reading what landed, and that reading is what produces the notes — so the two are one judgment and happen at one time. It also lets a release be written *whole*: grouped, with a migration section where one is needed, which notes accrued in commit order never get reshaped into.
 
 A run with no `## Unreleased` section, or an empty one, fails. That is deliberate: a tag naming a version whose entry says nothing can't be fixed without moving the tag.
 
