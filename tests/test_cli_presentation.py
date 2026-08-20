@@ -146,15 +146,29 @@ def test_a_note_renders_under_the_command_it_describes(tmp_path):
     assert page.index("### `demo nuke`") < page.index("There is no undo")
 
 
-def test_the_declared_organisation_is_recorded_alongside_the_grammar(tmp_path):
+def test_the_manifest_stays_a_recording(tmp_path):
+    """The declared half never lands in the committed manifest.
+
+    Its worth is that a diff in it is a grammar change — a renamed flag reaching
+    users with nothing naming it is why it exists. Six hundred lines of prose
+    alongside would bury exactly that signal, so the organisation merges at
+    render time and the file on disk stays what the binary said."""
     m = _manifest(_plugin(tmp_path, GROUPED))
 
-    assert m["lede"] == "Slugs are case-sensitive."
-    assert [g["name"] for g in m["groups"]] == ["Routes", "Danger"]
-    assert m["groups"][0]["about"] == "Making and listing things."
-    assert m["examples"]["list"][0]["run"] == "demo list --json"
-    # the recording is still there and still first-class
     assert [c["name"] for c in m["commands"]] == ["init", "list", "nuke"]
+    for declared in ("lede", "groups", "examples", "notes"):
+        assert declared not in m
+
+
+def test_the_page_still_gets_both_halves(tmp_path):
+    root = _plugin(tmp_path, GROUPED)
+    gen_cli_manifest.run(root)
+    page = gen_cli_manifest.docs_page(root)
+
+    assert "Slugs are case-sensitive." in page          # lede
+    assert "## Routes" in page                          # groups
+    assert "demo list --json" in page                   # examples
+    assert "### `demo nuke`" in page                    # the recording
 
 
 def test_declaring_no_organisation_still_records_a_valid_grammar(tmp_path):

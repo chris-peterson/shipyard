@@ -434,8 +434,12 @@ def build(root: str | pathlib.Path | None = None) -> str | None:
     if body["usages"]:
         manifest["usages"] = body["usages"]
     manifest["commands"] = body["commands"]
-    # After `commands`, so the checks below can name what the recording found.
-    manifest.update(_presentation(spec, body["commands"]))
+    # The declared organisation is deliberately *not* written here. The manifest
+    # is a recording, and its worth is that a diff in it is a grammar change —
+    # bury 600 lines of prose alongside and a renamed flag stops being visible,
+    # which is the failure the manifest was built to end. It merges at render
+    # time instead; see docs_page.
+    _presentation(spec, body["commands"])  # validated now, so a bad group fails the projection
     return HEADER + yaml.safe_dump(
         manifest, sort_keys=False, allow_unicode=True, width=10_000)
 
@@ -726,11 +730,18 @@ def docs_page(root: str | pathlib.Path | None = None) -> str | None:
     """The reference page for the committed manifest, or None when the repo
     declares no CLI. A declared manifest that hasn't been generated yet is not an
     error here — the page appears once `generate` has written it."""
-    path = target(root)
-    if path is None or not path.exists():
+    spec = _cli_spec(root)
+    if spec is None:
+        return None
+    path = plugin_root(root) / spec["manifest"]
+    if not path.exists():
         return None
     manifest = load_mapping(path, "a mapping carrying the recorded grammar")
     source = path.relative_to(plugin_root(root)).as_posix()
+    # Recording plus declaration, joined for the page and nowhere else. Reading
+    # the spec again here costs a file read and keeps the committed manifest
+    # honest about being a recording.
+    manifest = {**manifest, **_presentation(spec, manifest.get("commands") or [])}
     if not manifest.get("name"):
         # build-docs gates the release, so an unreadable manifest has to name
         # itself here rather than reaching the renderer and surfacing as a

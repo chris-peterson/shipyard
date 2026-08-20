@@ -38,69 +38,6 @@
     },
     "commands": {
       "$ref": "#/$defs/commands"
-    },
-    "lede": {
-      "type": "string",
-      "description": "Prose a reader needs before the first command. Declared in plugin.yml's `cli:` block, because help output has nowhere to put it."
-    },
-    "groups": {
-      "type": "array",
-      "description": "The reference page's sections, in order. Declared in plugin.yml. The generator refuses a group naming a command the CLI doesn't document, and refuses a documented command that no group lists \u2014 so this covers every entry in `commands` exactly once.",
-      "items": {
-        "type": "object",
-        "required": [
-          "name",
-          "commands"
-        ],
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "about": {
-            "type": "string"
-          },
-          "commands": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      }
-    },
-    "examples": {
-      "type": "object",
-      "description": "Worked examples keyed by command name, declared in plugin.yml. A command with no entry simply has none.",
-      "additionalProperties": {
-        "type": "array",
-        "minItems": 1,
-        "items": {
-          "type": "object",
-          "required": [
-            "run"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "run": {
-              "type": "string"
-            },
-            "note": {
-              "type": "string"
-            },
-            "out": {
-              "type": "string"
-            }
-          }
-        }
-      }
-    },
-    "notes": {
-      "type": "object",
-      "description": "Prose about a command, keyed by command name, declared in plugin.yml. Markdown. Help output gives a one-line summary per form and nothing about why a command refuses or what it stamps, so this is the half of the reference no recording can produce.",
-      "additionalProperties": {
-        "type": "string"
-      }
     }
   },
   "$defs": {
