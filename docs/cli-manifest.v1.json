@@ -94,6 +94,13 @@
           }
         }
       }
+    },
+    "notes": {
+      "type": "object",
+      "description": "Prose about a command, keyed by command name, declared in plugin.yml. Markdown. Help output gives a one-line summary per form and nothing about why a command refuses or what it stamps, so this is the half of the reference no recording can produce.",
+      "additionalProperties": {
+        "type": "string"
+      }
     }
   },
   "$defs": {

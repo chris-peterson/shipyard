@@ -507,6 +507,25 @@ def _presentation(spec: dict, commands: list[dict]) -> dict:
                 "silently omit.")
         out["groups"] = rendered
 
+    notes = spec.get("notes")
+    if notes is not None:
+        if not isinstance(notes, dict):
+            raise SystemExit(
+                "shipyard gen-cli-manifest: plugin.yml `cli: notes:` must map a "
+                "command name to its prose")
+        rendered_notes: dict[str, str] = {}
+        for name, text in notes.items():
+            if name not in recorded:
+                raise SystemExit(
+                    f"shipyard gen-cli-manifest: `cli: notes:` names {name!r}, "
+                    "which the CLI's help doesn't document")
+            if not isinstance(text, str) or not text.strip():
+                raise SystemExit(
+                    f"shipyard gen-cli-manifest: the note for {name!r} must be "
+                    "non-empty text")
+            rendered_notes[name] = text.strip()
+        out["notes"] = rendered_notes
+
     examples = spec.get("examples")
     if examples is not None:
         if not isinstance(examples, dict):
@@ -631,11 +650,18 @@ def _render_command(program: str, command: dict, path: list[str], out: list[str]
         _render_command(program, sub, here, out)
 
 
-def _render_entry(program: str, command: dict, examples: dict, depth: int) -> list[str]:
+def _render_entry(program: str, command: dict, notes: dict, examples: dict,
+                  depth: int) -> list[str]:
     forms: list[str] = []
     _render_command(program, command, [], forms)
     lines = [f"{'#' * depth} `{program} {command['name']}`", "",
              "```text", *forms, "```", ""]
+    # The grammar first, then what a person had to write about it. Help output
+    # gives a one-line summary per form and nothing about why a command refuses,
+    # what it stamps, or which escape hatch to reach for — so this is the half of
+    # the page no recording can produce.
+    if note := notes.get(command["name"]):
+        lines += [note, ""]
     for example in examples.get(command["name"], []):
         if note := example.get("note"):
             lines += [note, ""]
@@ -657,6 +683,7 @@ def render_markdown(manifest: dict, source: str) -> str:
     it can't omit a command or drift from the binary."""
     program = manifest["name"]
     groups = manifest.get("groups") or []
+    notes = manifest.get("notes") or {}
     examples = manifest.get("examples") or {}
 
     lines = [f"# {program}", ""]
@@ -679,7 +706,7 @@ def render_markdown(manifest: dict, source: str) -> str:
     commands = {c["name"]: c for c in manifest.get("commands") or []}
     if not groups:
         for command in commands.values():
-            lines += _render_entry(program, command, examples, depth=2)
+            lines += _render_entry(program, command, notes, examples, depth=2)
         return "\n".join(lines)
 
     # Grouped: `##` per group so a sidebar can link a section, `###` per command
@@ -691,7 +718,7 @@ def render_markdown(manifest: dict, source: str) -> str:
         if about := group.get("about"):
             lines += [about, ""]
         for name in group["commands"]:
-            lines += _render_entry(program, commands[name], examples, depth=3)
+            lines += _render_entry(program, commands[name], notes, examples, depth=3)
     return "\n".join(lines)
 
 

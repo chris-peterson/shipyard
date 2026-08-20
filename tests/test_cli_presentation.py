@@ -115,6 +115,37 @@ def test_an_example_without_a_run_is_refused(tmp_path):
 
 # ---- what lands in the manifest ------------------------------------------
 
+def test_a_note_for_an_undocumented_command_is_refused(tmp_path):
+    root = _plugin(tmp_path, BASE + """  notes:
+    teleport: Goes nowhere.
+""")
+    with pytest.raises(SystemExit, match="`cli: notes:` names 'teleport'"):
+        gen_cli_manifest.run(root)
+
+
+def test_an_empty_note_is_refused(tmp_path):
+    root = _plugin(tmp_path, BASE + """  notes:
+    list: '   '
+""")
+    with pytest.raises(SystemExit, match="must be non-empty text"):
+        gen_cli_manifest.run(root)
+
+
+def test_a_note_renders_under_the_command_it_describes(tmp_path):
+    """The half of the page no recording can produce: why a command refuses,
+    what it stamps, which escape hatch to reach for."""
+    root = _plugin(tmp_path, GROUPED + """  notes:
+    nuke: |
+      Refuses unless `--force`. There is no undo.
+""")
+    gen_cli_manifest.run(root)
+    page = gen_cli_manifest.docs_page(root)
+
+    assert "Refuses unless `--force`. There is no undo." in page
+    # under its own command, after the grammar
+    assert page.index("### `demo nuke`") < page.index("There is no undo")
+
+
 def test_the_declared_organisation_is_recorded_alongside_the_grammar(tmp_path):
     m = _manifest(_plugin(tmp_path, GROUPED))
 
