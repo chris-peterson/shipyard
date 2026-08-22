@@ -493,3 +493,22 @@ def test_a_plugin_with_no_hooks_yml_has_nothing_to_disagree_with(repo):
     assert not (repo / "hooks").exists()
 
     assert cut.run(repo, yes=True) == 0
+
+
+def test_the_preview_explains_an_inferred_level_and_an_override_differently(
+        repo, capsys, monkeypatch):
+    """A heading is rendered as one; a flag is not.
+
+    The live run of this printed ``from `### --bump` `` — the override's reason
+    dressed up as a heading in the notes, which is the one thing it isn't."""
+    _land(repo, "A change")
+    _write_notes(repo, "### Fixed\n\n- A bug")
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+
+    with pytest.raises(SystemExit):
+        cut.run(repo)
+    assert "(patch, from `### Fixed`)" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit):
+        cut.run(repo, bump="major")
+    assert "(major, from --bump)" in capsys.readouterr().out

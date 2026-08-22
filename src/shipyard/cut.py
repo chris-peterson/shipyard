@@ -216,7 +216,7 @@ def _rule(label: str) -> str:
 def _preview(plan: Plan, nxt: str, level: str, because: str, body: str,
              tag: str) -> None:
     print()
-    print(f"  {plan.current} → {nxt}   ({level}, from `### {because}`)")
+    print(f"  {plan.current} → {nxt}   ({level}, from {because})")
     print(f"  recorded in {plan.manifest}"
           + (", projected into .claude-plugin/plugin.json"
              if plan.manifest == "plugin.yml" else ""))
@@ -258,7 +258,11 @@ def _confirm(level: str, yes: bool) -> str:
 
 def _ship(plan: Plan, *, bump: str | None, yes: bool, remote: str) -> int:
     body = changelog.staged(plan.root)
-    level, because = version.infer_level(changelog.subsections(body))
+    level, heading = version.infer_level(changelog.subsections(body))
+    # Formatted here rather than in the preview: an inferred level is explained
+    # by a heading in the notes, an override by the flag that supplied it, and
+    # only the first of those is a heading to render as one.
+    because = f"`### {heading}`"
     if bump:
         level, because = bump, "--bump"
     nxt = version.next_version(plan.current, level)
