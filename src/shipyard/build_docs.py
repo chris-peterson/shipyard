@@ -1,5 +1,6 @@
 """Render a plugin's docs/ from its sources, so there's no parallel doc artifact.
 
+  docs: pre_render: -> the plugin's own generators, run first (if declared)
   assets/* -> docs/*                                (resource paths, copied first)
   skills/<name>/SKILL.md -> docs/skills/<name>.md   (YAML frontmatter stripped)
   skills/<name>/references/*.md -> docs/skills/<name>/references/*.md
@@ -15,6 +16,13 @@
 Only source dirs that exist are rendered, so a plugin without guides/ or rules/
 is fine. docs/ is a pure render target. Any other files under docs/ (hand-written
 pages, images) are left untouched.
+
+A plugin can publish pages this build has no renderer for — a CLI-specific
+gallery, a domain table generated from its own YAML. `docs: pre_render:` names
+the command(s) that produce them, run from the plugin root before anything
+below: the link check at the end scans every page under docs/, and a page a
+pre_render command hasn't written yet by then reads as a dead link, not a page
+that's merely late.
 
 Only docs/ is published, so a page referencing a file outside it 404s on the
 live site with nothing failing to announce it. Resource paths close that: each
@@ -34,7 +42,9 @@ from __future__ import annotations
 import html
 import pathlib
 import re
+import shlex
 import shutil
+import subprocess
 import urllib.parse
 
 import yaml
@@ -313,6 +323,41 @@ def _strip_frontmatter(text: str) -> str:
     return text  # no frontmatter fence -> pass through
 
 
+def declared_pre_render(spec: dict) -> list[str]:
+    """The commands from plugin.yml's `docs: pre_render:`, or `[]` when it names
+    none. Same shape as `resources`, and the same reason: a fact about the
+    plugin, read from the checkout, so a local `build-docs` runs it exactly as
+    CI does — there is no separate input for it to fall out of step with."""
+    declared = spec.get("pre_render")
+    if declared is None:
+        return []
+    if isinstance(declared, str):
+        declared = [declared]
+    if not isinstance(declared, list) or not all(isinstance(c, str) for c in declared):
+        raise SystemExit(
+            "shipyard: plugin.yml `docs: pre_render:` must be a command or a "
+            f"list of commands, got {declared!r}")
+    return [c.strip() for c in declared if c.strip()]
+
+
+def _run_pre_render(r: pathlib.Path, commands: list[str]) -> None:
+    """Run a plugin's own doc generators before shipyard renders or checks
+    anything, in the order declared — so a later command can depend on an
+    earlier one's output the same way it would run by hand."""
+    for command in commands:
+        argv = shlex.split(command)
+        try:
+            subprocess.run(argv, cwd=r, check=True)
+        except FileNotFoundError as exc:
+            raise SystemExit(
+                f"shipyard: plugin.yml `docs: pre_render:` command {command!r} "
+                f"failed to start: {exc.strerror}") from exc
+        except subprocess.CalledProcessError as exc:
+            raise SystemExit(
+                f"shipyard: plugin.yml `docs: pre_render:` command {command!r} "
+                f"exited {exc.returncode}") from exc
+
+
 def declared_resources(spec: dict) -> list[str] | None:
     """The resource paths from plugin.yml's `docs:` block, or None when it names
     none — which means DEFAULT_RESOURCES applies, not "publish nothing".
@@ -448,11 +493,17 @@ def run(root: str | pathlib.Path | None = None) -> int:
     r = plugin_root(root)
     docs = r / "docs"
     plugin = load_plugin(root)
+    docs_spec = block(plugin, "docs", "plugin.yml")
 
-    # First, so that everything projected below wins a name collision — shipyard
-    # owns index.html and the rendered pages, and a resource quietly replacing one
-    # of them would be a build whose output depends on copy order.
-    _publish_resources(r, docs, declared_resources(block(plugin, "docs", "plugin.yml")))
+    # Before shipyard touches docs/ at all: a pre_render command may write pages
+    # the rest of this build only links to, never renders itself.
+    _run_pre_render(r, declared_pre_render(docs_spec))
+
+    # First of shipyard's own steps, so that everything projected below wins a
+    # name collision — shipyard owns index.html and the rendered pages, and a
+    # resource quietly replacing one of them would be a build whose output
+    # depends on copy order.
+    _publish_resources(r, docs, declared_resources(docs_spec))
 
     # Each rendered page paired with the source it came from, so the link rewrite
     # below can resolve that page's links the way a reader of the source does.

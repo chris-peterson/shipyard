@@ -10,6 +10,20 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Added
+
+- **`docs: pre_render:`** declares command(s) a plugin runs itself, from its
+  root, before `build-docs` renders or link-checks anything — for pages
+  shipyard has no renderer for (a CLI-specific gallery, a domain table built
+  from a plugin's own source). Without it, a plugin publishing such a page had
+  to get its own CI job's step order right independently at every call site
+  that reaches `build-docs` (`build-docs` itself, and `generate`, which runs it
+  internally) — and ClaudeWatch's conversion shipped that wrong in three of
+  four places before the gap was worth closing here instead of in every
+  consumer.
+
 ## 2.0.0
 
 ### Changed
