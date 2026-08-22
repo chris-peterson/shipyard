@@ -1,0 +1,51 @@
+name: Notify marketplace (shipyard)
+
+# The one part of a release that cannot happen in the operator's checkout.
+# `shipyard release` runs locally and does everything else: it commits the bump,
+# tags that commit, pushes both atomically, and publishes the release from the
+# changelog section it committed. Dispatching the marketplace rebuild needs
+# MARKETPLACE_DISPATCH_TOKEN — a token allowed to repository_dispatch to
+# chris-peterson/claude-marketplace, since the default GITHUB_TOKEN cannot
+# dispatch across repositories — and a repo secret only exists inside Actions.
+#
+# So a plugin's whole release.yml becomes:
+#
+#   on:
+#     release:
+#       types: [published]
+#   jobs:
+#     notify:
+#       uses: chris-peterson/shipyard/.github/workflows/notify-marketplace.yml@v2
+#       secrets: inherit
+#
+# The trigger is `release: published` rather than a tag push, because the release
+# is the last thing the local driver does — so by the time this runs, the tag, the
+# commit it names, and the published body are all in place.
+#
+# A release published by Actions' own GITHUB_TOKEN would not start this run;
+# GitHub suppresses workflow triggers from that token to stop recursion. The
+# local driver publishes with the operator's own credentials, which is what makes
+# the event carry through.
+
+on:
+  workflow_call:
+    secrets:
+      MARKETPLACE_DISPATCH_TOKEN:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify bridge.ai marketplace
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.MARKETPLACE_DISPATCH_TOKEN }}
+          PLUGIN: ${{ github.event.repository.name }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          gh api repos/chris-peterson/claude-marketplace/dispatches \
+            -f event_type=plugin-released \
+            -f "client_payload[plugin]=$PLUGIN" \
+            -f "client_payload[tag]=$TAG"

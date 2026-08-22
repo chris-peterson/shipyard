@@ -1,12 +1,18 @@
 name: Release (shipyard)
 
-# Reusable release workflow. A plugin calls it from its own release.yml under a
-# `workflow_dispatch` whose only input is the bump level. This derives the next
-# version from plugin.yml, retitles CHANGELOG.md's `## Unreleased` section to it,
-# regenerates the artifacts, commits, **then** tags that commit, publishes the
-# release from the section it just wrote, and dispatches the marketplace rebuild.
-# The plugin name comes from the caller's repository, so nothing here is
-# plugin-specific.
+# The dispatched release, for plugins still on it. `shipyard release` supersedes
+# it: same ordering, run from the operator's checkout, where the version, the
+# body, and every refusal are visible before the first write instead of in a
+# finished run. A plugin converts by replacing its release.yml with the
+# `release: published` caller of notify-marketplace.yml, described in
+# docs/releasing.md.
+#
+# A plugin calls this from its own release.yml under a `workflow_dispatch` whose
+# only input is the bump level. It derives the next version from plugin.yml,
+# retitles CHANGELOG.md's `## Unreleased` section to it, regenerates the
+# artifacts, commits, **then** tags that commit, publishes the release from the
+# section it just wrote, and dispatches the marketplace rebuild. The plugin name
+# comes from the caller's repository, so nothing here is plugin-specific.
 #
 # The order is the point. The trigger used to be `release: published`, so a human
 # cut the tag before this ran and the bump commit always landed *after* the tag
@@ -73,7 +79,7 @@ jobs:
           # into a shell script is a script-injection vector.
           BUMP: ${{ inputs.bump }}
           NOTES: ${{ runner.temp }}/notes.md
-        run: python3 -m shipyard release --bump "$BUMP" --notes-file "$NOTES" >> "$GITHUB_OUTPUT"
+        run: python3 -m shipyard stage-release --bump "$BUMP" --notes-file "$NOTES" >> "$GITHUB_OUTPUT"
 
       # A backstop, not the writer: the projection job already committed these
       # when the source changed, so a release ordinarily finds nothing to resync.

@@ -44,11 +44,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="the declared CLI's --help → its committed grammar manifest")
     add("build-docs", help="render skills/rules/… into docs/ (+ plugin-docs.json); "
                            "plugin.yml `docs: resources:` names extra paths to publish")
-    rel = add("release", help="retitle the staged notes, bump the version, print it")
-    rel.add_argument("--bump", required=True, choices=version.LEVELS,
-                     help="how far to advance the version")
-    rel.add_argument("--notes-file", default=None,
-                     help="write the released section here, for --notes-file")
+    rel = add("release", help="cut a release from this checkout: draft the notes, "
+                              "then commit, tag, push, and publish")
+    rel.add_argument("--bump", default=None, choices=version.LEVELS,
+                     help="override the level the notes' own headings imply")
+    rel.add_argument("--draft", action="store_true",
+                     help="(re)draft the worksheet and stop, replacing any "
+                          "`## Unreleased` content already there")
+    rel.add_argument("--yes", action="store_true",
+                     help="skip the confirmation; the preview still prints")
+    rel.add_argument("--remote", default="origin", help="which remote to publish to")
+    rel.add_argument("--branch", default="main", help="which branch to release from")
+
+    # The pure step, for the CI-side workflow that still owns the write. It takes
+    # a level rather than inferring one because a workflow input is what supplies
+    # it there, and writes nothing but the two files it is named for.
+    stage = add("stage-release",
+                help="retitle the staged notes and bump the version, printing it")
+    stage.add_argument("--bump", required=True, choices=version.LEVELS,
+                       help="how far to advance the version")
+    stage.add_argument("--notes-file", default=None,
+                       help="write the released section here, for a publish step")
     add("roster", help="plugins.yml → name/url pairs (no plugin checkouts needed)")
     add("gen-marketplace-json", help="plugins.yml + plugins → .claude-plugin/marketplace.json")
     add("gen-plugins-js", help="plugins' suite: blocks → docs/plugins.js")
@@ -90,6 +106,10 @@ def main(argv: list[str] | None = None) -> int:
         from . import build_docs
         return build_docs.run(root)
     if args.command == "release":
+        from . import cut
+        return cut.run(root, bump=args.bump, draft_only=args.draft,
+                       yes=args.yes, remote=args.remote, branch=args.branch)
+    if args.command == "stage-release":
         from . import release
         return release.run(root, bump=args.bump, notes_file=args.notes_file)
     if args.command == "roster":

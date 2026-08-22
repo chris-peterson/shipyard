@@ -10,6 +10,61 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Added
+
+- **`shipyard release` cuts a release from your own checkout**, in two runs of
+  one command. The first reads the commits since the last `vX.Y.Z` tag and
+  drafts them into `CHANGELOG.md` under `## Unreleased`, with the sections to
+  sort them into; you rewrite those lines into notes; the second prints the
+  version, the exact body it will publish, and the refs it will write, asks
+  once, then commits the notes and the bump as one commit, tags it, pushes both
+  atomically, and publishes. Which half runs is decided by the file rather than
+  a flag, so re-running is how you advance and how you resume after a failure.
+- **The bump level is read back from the notes**, not chosen in a form. A
+  `### Removed` or `### Breaking` heading with content under it means major,
+  `### Added` or `### Deprecated` means minor, anything else patch; empty
+  headings left by the draft don't count. The level and the heading that decided
+  it print above the confirmation, which takes `major`, `minor`, or `patch` as
+  an answer, and `--bump` overrides outright.
+- **Every refusal now happens before the first write**, in the checkout: a
+  worksheet still unsorted, an empty `## Unreleased`, a version already tagged,
+  a `plugin.json` that disagrees with `plugin.yml`, unpushed commits, a dirty
+  tree outside the changelog, a `vX` alias that is also a branch, `gh` not
+  authenticated. Each of these was a red run to open and read, and the alias
+  check in particular used to fire *after* the bump commit already existed.
+- **A release no longer runs the plugin's own build.** It checks the projections
+  it can check with pyyaml alone — `plugin.json` and `hooks.json` — and refuses
+  when one disagrees with its source, because that is the projection job's commit
+  to make. The CLI manifest is excluded by design: verifying it means running the
+  plugin's CLI. The step this replaces ran the full `generate` inside the release
+  job on a checkout with nothing built ahead of it, so a plugin whose committed
+  entry point imports its dependencies at runtime saw the CLI exit non-zero and
+  the release die before it committed the version bump — a failure that had to be
+  worked around in the plugin's own `cli: invoke:`.
+- **`notify-marketplace.yml`** is the reusable workflow a converted plugin calls
+  on `release: published`, holding the one part of a release that needs a repo
+  secret. A plugin's whole release.yml becomes four lines.
+
+### Changed
+
+- **The release commit carries the notes, the version, and the projected
+  `plugin.json` together**, so the compare link between two tags contains the
+  changelog entry for the newer one. The branch and its tag are pushed in one
+  atomic transaction, so no window exists in which the tag names a commit that
+  is not there yet.
+- **`stage-release` is the new name of the pure step** the dispatched
+  `release.yml` calls (it was `release`, which is now the local driver). Callers
+  of `release.yml` are unaffected — the workflow pins the shipyard line it
+  belongs to, so the rename travels with it.
+
+### Removed
+
+- **`cut-release.yml`.** shipyard releases itself with `shipyard release`, the
+  same command it gives a plugin, including the `vX` alias move its own
+  consumers pin. `release.yml` stays for plugins that have not converted.
+
 ## 2.1.0
 
 ### Added

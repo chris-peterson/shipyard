@@ -21,6 +21,7 @@ pip install -e ".[dev]"
 pytest
 
 python3 -m shipyard generate --root ../some-plugin
+python3 -m shipyard release --root ../some-plugin   # drafts, then ships
 ```
 
 Running `generate` against a real plugin checkout is worth doing before pushing a
@@ -47,14 +48,14 @@ src/shipyard/_common.py   root resolution and plugin.yml loading
 src/shipyard/gen_*.py     one module per projection
 src/shipyard/build_docs.py  renders skills/rules/guides/templates/references/SPEC.md/STATUS.md into docs/
 src/shipyard/links.py     docsify's routing and heading-slug rules, for the link rewrite and the link check
+src/shipyard/cut.py       the local release driver: preflight, draft, preview, ship
+src/shipyard/git.py       the git the driver needs, and nothing else
 tests/                    pytest suites
 docs/                     shipyard's own docsify site, published by pages.yml
 docs/cli-manifest.v1.json the CLI manifest's schema — published, so a consumer
                           can validate one without guessing at its shape
 actions/                  the composite actions plugins call from their own jobs
 .github/workflows/        the reusable workflows plugins call, plus shipyard's own CI
-                          (cut-release.yml releases shipyard the way release.yml
-                           releases a plugin, so the flow is dogfooded here first)
 ```
 
 ## The two contracts
@@ -79,8 +80,8 @@ toolchain, which is why the projection ships as an action in the caller's job
 rather than a workflow that owns it: a CLI has to be built before it can be run.
 
 **What plugins call is a public API.** `.github/workflows/{deploy-docs,
-release}.yml` and `actions/{build-docs,project}` are called by every plugin via
-`uses: chris-peterson/shipyard/<path>@<major>`. Changing an input, output, or
+notify-marketplace,release}.yml` and `actions/{build-docs,project}` are called by
+every plugin via `uses: chris-peterson/shipyard/<path>@<major>`. Changing an input, output, or
 permission changes their CI without them editing anything. (`pages.yml` and
 `test.yml` are shipyard's own CI, not part of that surface.)
 
@@ -144,6 +145,16 @@ in that window is a cherry-pick onto a `v1` branch and a re-cut tag.
   for the local read above, and no projector may require it.
 - **Hook descriptions come from `hooks.yml`**, not from a comment convention in
   the hook scripts. `gen-describe` reads them straight from the declaration.
+- **`release` is the single release verb, and it runs locally.** Every check a
+  release needs is answerable from the checkout, so `cut.py` answers them there,
+  before the first write — where the dispatched workflow could only fail a run
+  after the fact and could not show the version or the body until both were
+  permanent. It is the one place a committed artifact is written outside CI, and
+  the carve-out is held by a preflight: a checkout whose `plugin.json` disagrees
+  with `plugin.yml` is refused, because that is a commit the projection job still
+  owes the branch and a release would land it after the tag. `stage-release` is
+  the pure step the reusable `release.yml` still calls for plugins that have not
+  converted.
 
 ## Glossary
 

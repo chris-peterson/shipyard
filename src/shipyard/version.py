@@ -94,3 +94,39 @@ def write_plugin_yml(new: str, root: str | pathlib.Path | None = None) -> None:
     if count != 1:
         raise SystemExit(f"shipyard: {path} has no `version: X.Y.Z` line to bump.")
     path.write_text(text)
+
+
+# Which `### Heading` in a release's notes implies which level. Read in this
+# order, first match wins, so a section carrying both Removed and Added is major.
+#
+# The notes are written before the level is chosen, and their shape already
+# records the judgment: you decided something was a removal, an addition, or a
+# fix when you filed it under that heading. Inferring the level from that is
+# reading a decision back rather than asking for it again — a dropdown asking
+# for it a second time is a way for the two answers to disagree.
+_MAJOR_HEADINGS = ("Removed", "Breaking", "Breaking changes")
+_MINOR_HEADINGS = ("Added", "Deprecated")
+
+
+def infer_level(subsections: dict[str, str]) -> tuple[str, str]:
+    """The bump `subsections` implies, and the heading that decided it.
+
+    `subsections` carries only the headings with content under them, so an empty
+    `### Added` left over from the drafted skeleton doesn't make every release a
+    minor one.
+
+    A release whose notes are a bare list under no heading at all reads as a
+    patch. That is the conservative answer and not a confident one, which is why
+    the driver prints what decided the level and takes an override: `### Changed`
+    is where a breaking change is conventionally filed, and nothing in the words
+    under it distinguishes one from a rewording."""
+    present = {k.strip().lower(): k for k in subsections}
+    for heading in _MAJOR_HEADINGS:
+        if heading.lower() in present:
+            return "major", present[heading.lower()]
+    for heading in _MINOR_HEADINGS:
+        if heading.lower() in present:
+            return "minor", present[heading.lower()]
+    if present:
+        return "patch", ", ".join(subsections)
+    return "patch", "no headings"
