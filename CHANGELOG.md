@@ -23,6 +23,18 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
   internally) — and ClaudeWatch's conversion shipped that wrong in three of
   four places before the gap was worth closing here instead of in every
   consumer.
+- **`cli:` gains `lede`, `groups`, `examples`, and `notes`** — a CLI's
+  generated reference page can be organized into sections with a lede,
+  worked examples, and per-command prose, instead of the flat alphabetical
+  list `--help` alone produces. Declared in `plugin.yml` beside `invoke`,
+  `engine`, and `manifest`; declaring nothing keeps today's flat page. The
+  generator refuses any disagreement with what the CLI actually documents —
+  a group naming a command the help doesn't have, or a documented command in
+  no group, fails the run rather than shipping a page silently missing it.
+  The committed manifest stays pure grammar (the declared organization is
+  merged in only when `build-docs` renders the page), so a diff to it is
+  still always a change to the CLI's contract, and every manifest written
+  before these fields stays valid under the unchanged `v1` schema.
 
 ## 2.0.0
 
