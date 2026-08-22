@@ -499,3 +499,77 @@ def test_no_declaration_means_the_default_applies_not_publish_nothing():
 def test_a_wrong_typed_resources_value_is_refused():
     with pytest.raises(SystemExit, match="must be a path or a list of paths"):
         build_docs.declared_resources({"resources": {"assets": True}})
+
+
+def declare_pre_render(root, *commands):
+    """Point the plugin's `docs: pre_render:` at `commands` — where the build
+    reads them from, so a test that declares them exercises the same path CI
+    does."""
+    (root / "plugin.yml").write_text(
+        PLUGIN_YML + "docs:\n  pre_render:\n"
+        + "".join(f"    - {c}\n" for c in commands))
+
+
+def test_a_pre_render_command_runs_before_the_link_check(plugin):
+    """The whole point: a page pre_render writes is on disk by the time the link
+    check at the end of run() looks for it, even though nothing here renders it
+    itself."""
+    root, write = plugin
+    write("gen_extra.py", 'open("docs/extra.md", "w").write("# Extra\\n")\n')
+    write("docs/README.md", "[extra](/extra)\n")
+    declare_pre_render(root, "python3 gen_extra.py")
+
+    assert build_docs.run(root) == 0
+    assert (root / "docs" / "extra.md").read_text() == "# Extra\n"
+
+
+def test_pre_render_commands_run_in_the_declared_order(plugin):
+    root, write = plugin
+    write("first.py", 'open("out.txt", "w").write("first\\n")\n')
+    write("second.py",
+          'assert open("out.txt").read() == "first\\n"\n'
+          'open("out.txt", "a").write("second\\n")\n')
+    write("docs/README.md", "# demo\n")
+    declare_pre_render(root, "python3 first.py", "python3 second.py")
+
+    build_docs.run(root)
+
+    assert (root / "out.txt").read_text() == "first\nsecond\n"
+
+
+def test_a_failing_pre_render_command_stops_the_build(plugin):
+    root, write = plugin
+    write("docs/README.md", "# demo\n")
+    declare_pre_render(root, "python3 -c \"import sys; sys.exit(3)\"")
+
+    with pytest.raises(SystemExit, match="exited 3"):
+        build_docs.run(root)
+
+
+def test_a_pre_render_command_that_cannot_start_fails_loudly(plugin):
+    root, write = plugin
+    write("docs/README.md", "# demo\n")
+    declare_pre_render(root, "no-such-binary-xyz")
+
+    with pytest.raises(SystemExit, match="failed to start"):
+        build_docs.run(root)
+
+
+def test_declared_pre_render_reads_the_docs_block():
+    assert build_docs.declared_pre_render(
+        {"pre_render": ["python3 a.py", "python3 b.py"]}) == \
+        ["python3 a.py", "python3 b.py"]
+
+
+def test_a_lone_pre_render_command_need_not_be_written_as_a_list():
+    assert build_docs.declared_pre_render({"pre_render": "python3 a.py"}) == \
+        ["python3 a.py"]
+
+
+def test_no_pre_render_declaration_means_nothing_runs():
+    assert build_docs.declared_pre_render({}) == []
+
+
+def test_a_wrong_typed_pre_render_value_is_refused():
+    with pytest.raises(SystemExit, match="must be a command or a list of commands"):
+        build_docs.declared_pre_render({"pre_render": {"a": True}})

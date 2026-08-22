@@ -80,6 +80,13 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
   A **dependency** resolves to its docs on the hub by name, which is also what marks it as a peer: peers lead the table and carry their own mark, while a project documenting itself elsewhere declares a `url`, reads as outbound, and sorts to the bottom.
 
+  A plugin can publish pages this build has no renderer for — ClaudeWatch's `rules.md` and `prompts.md`, a block/ask reference table and a permission-prompt gallery built from its own `watches/*.yml`, which nothing here knows how to read. **`docs: pre_render:`** names the command(s) that produce them, run from the plugin root before anything else in this list — including the link check below, which scans every page under `docs/` and would otherwise see a page one of these commands hasn't written yet as a dead link rather than one that's merely late.
+
+  ```yaml
+  docs:
+    pre_render: python3 build/gen-rules-doc.py
+  ```
+
   Only `docs/` is published, so a page's `<img src="hero.svg">` resolves only if that file is in the artifact. **Resource paths** put it there: each path the caller names is copied in, with its directory flattened to the docs root, so `assets/hero.svg` is reachable as `hero.svg` — the same placement each plugin's own `cp assets/* docs/` step gave it before shipyard replaced that step. Declare them in `plugin.yml`, which is also what lets a local `build-docs` reproduce CI's; `assets` applies when you name nothing.
 
   ```yaml
