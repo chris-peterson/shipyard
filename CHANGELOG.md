@@ -39,6 +39,12 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
   wrote. [Suggestions and dependencies](https://chris-peterson.github.io/shipyard/#/suggestions-and-dependencies)
   has the split against `claude plugin validate --strict`.
 
+### Fixed
+
+- **`shipyard release` names the flag, not a heading, when `--bump` set the
+  level.** The preview line read ``(major, from `### --bump`)``, which reads as a
+  heading in the notes that decided it.
+
 ### Known gaps
 
 - **A `version` constraint doesn't resolve yet.** Claude Code matches ranges
