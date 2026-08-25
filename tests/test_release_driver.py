@@ -14,6 +14,10 @@ import pytest
 
 from shipyard import changelog, cut, git
 
+# Captured before the autouse stub below replaces it, so the one test that
+# exercises the real subprocess call can still reach it.
+_real_gh = cut._gh
+
 PLUGIN_YML = """\
 name: widget
 version: 1.2.0
@@ -87,7 +91,7 @@ def stub_gh(monkeypatch):
     passing quietly."""
     calls = []
 
-    def fake(*args):
+    def fake(root, *args):
         calls.append(args)
         if args[:2] == ("auth", "status"):
             return "logged in"
@@ -97,6 +101,35 @@ def stub_gh(monkeypatch):
 
     monkeypatch.setattr(cut, "_gh", fake)
     return calls
+
+
+# ---- where gh acts ---------------------------------------------------------
+
+def test_gh_runs_inside_the_target_checkout(tmp_path, monkeypatch):
+    """The one call that isn't targeted by an explicit flag.
+
+    `git` gets `-C root` everywhere, so a release cut with `--root` tags and
+    pushes the right repo no matter where it was invoked from. `gh` reads its
+    repo off the working directory instead, so without this it would publish the
+    notes against whatever repo the shell was sitting in — which is a public
+    release on a repo nobody was releasing.
+    """
+    seen = {}
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["cwd"] = kwargs.get("cwd")
+        return subprocess.CompletedProcess(argv, 0, stdout="logged in\n", stderr="")
+
+    monkeypatch.setattr(cut.subprocess, "run", fake_run)
+    monkeypatch.chdir(tmp_path)
+
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    _real_gh(target, "auth", "status")
+
+    assert seen["argv"] == ("gh", "auth", "status")
+    assert seen["cwd"] == target
 
 
 # ---- the draft half --------------------------------------------------------

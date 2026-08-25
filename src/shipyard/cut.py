@@ -117,8 +117,16 @@ class Plan:
         self.current, self.last_tag, self.branch = current, last_tag, branch
 
 
-def _gh(*args: str) -> str:
-    proc = subprocess.run(("gh", *args), capture_output=True, text=True)
+def _gh(root: pathlib.Path, *args: str) -> str:
+    """Run `gh` inside the target checkout.
+
+    `gh` resolves which repo it acts on from its working directory, and every
+    other call this driver makes is targeted explicitly (`git -C root`). Without
+    the same targeting here, a release cut with `--root` from somewhere else
+    tags the right repo and publishes the notes against whichever repo the shell
+    happened to be in.
+    """
+    proc = subprocess.run(("gh", *args), capture_output=True, text=True, cwd=root)
     if proc.returncode != 0:
         raise SystemExit(
             f"shipyard: gh {' '.join(args)} failed: "
@@ -179,7 +187,7 @@ def _preflight(root: pathlib.Path, *, remote: str, branch: str) -> Plan:
 
     name, read, write, alias = _manifest(root)
     current = read(root)
-    _gh("auth", "status")
+    _gh(root, "auth", "status")
     return Plan(root, name, read, write, alias, current,
                 git.last_release_tag(root), branch)
 
@@ -311,7 +319,8 @@ def _ship(plan: Plan, *, bump: str | None, yes: bool, remote: str) -> int:
             "w", suffix=".md", prefix="shipyard-notes.", delete=False) as fh:
         fh.write(body.rstrip() + "\n")
         notes = fh.name
-    url = _gh("release", "create", tag, "--title", tag, "--notes-file", notes)
+    url = _gh(plan.root, "release", "create", tag, "--title", tag,
+              "--notes-file", notes)
     pathlib.Path(notes).unlink(missing_ok=True)
     print(f"published {url}")
     return 0

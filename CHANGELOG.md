@@ -10,6 +10,16 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Fixed
+
+- **`shipyard release --root <elsewhere>` publishes to the repo it was pointed
+  at.** `gh` reads which repo it acts on from its working directory, and only
+  that call was untargeted, so a release cut from outside the target checkout
+  bumped, tagged, moved the alias, and pushed the right repo, then published the
+  notes as a release on whichever repo the shell was sitting in.
+
 ## 2.3.0
 
 ### Added
