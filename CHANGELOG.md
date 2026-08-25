@@ -10,6 +10,42 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Added
+
+- **A plugin can declare who it reaches.** A `relevance:` block under
+  `marketplace:` in `plugin.yml` projects into the plugin's marketplace entry,
+  where Claude Code reads it to suggest the plugin to sessions whose working
+  directory, commands, hostnames, files read, or package-manifest dependencies
+  match. Nothing surfaces until an administrator allowlists the marketplace in
+  `pluginSuggestionMarketplaces`.
+- **A plugin can declare the plugins it needs.** A top-level `dependencies:`
+  list projects into `.claude-plugin/plugin.json`, so installing the plugin
+  installs them too. Entries are a plugin name, or a mapping with `name` and an
+  optional npm `version` range and `marketplace`. This is a different field from
+  `suite.dependencies`, which draws the doc site's soft-edge graph and installs
+  nothing.
+- **A marketplace can allow its plugins to depend across marketplaces.**
+  `allowCrossMarketplaceDependenciesOn:` in `plugins.yml` publishes into
+  `marketplace.json`, and `gen-marketplace-json` checks each plugin's
+  cross-marketplace dependency against it — so one that would fail at install
+  fails at projection instead.
+- **Both blocks are validated where Claude Code stays silent.** A misspelled
+  signal name, an unknown key under `relevance`, a repeated pattern, a `version`
+  that isn't a semver range, a misspelled key on a dependency object, and a
+  self- or duplicate dependency are all errors. Claude Code loads past every one
+  of them and reports none, so the plugin quietly does less than its owner
+  wrote. [Suggestions and dependencies](https://chris-peterson.github.io/shipyard/#/suggestions-and-dependencies)
+  has the split against `claude plugin validate --strict`.
+
+### Known gaps
+
+- **A `version` constraint doesn't resolve yet.** Claude Code matches ranges
+  against `{plugin-name}--v{version}` tags; `shipyard release` writes
+  `v{version}`. Declare dependencies without a `version` until the release flow
+  writes the prefixed tag.
+
 ## 2.2.0
 
 ### Added

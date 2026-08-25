@@ -49,6 +49,8 @@ A marketplace or catalog site is the other kind of target. It declares a `plugin
 | `shipyard gen-plugins-js` | the plugins' `suite:` blocks → `docs/plugins.js` |
 | `shipyard gen-deps-json` | the plugins' `suite.dependencies` → `docs/deps.json` |
 
+A plugin can also declare who it reaches and what it needs: a `relevance:` block under `marketplace:`, which asks Claude Code to suggest it to sessions whose work matches, and a top-level `dependencies:` list of plugins to install alongside it. Claude Code reads both and reports on neither, so shipyard rejects the shapes it would load and ignore — see [Suggestions and dependencies](suggestions-and-dependencies.md).
+
 `generate` dispatches on the manifest at `--root`, so one verb covers both kinds of target.
 
 ## How a plugin uses it
@@ -59,7 +61,7 @@ One touch-point in each plugin repo — no packaged install, and nothing to run 
 
 All of them pin the same major-version ref, and a repo is on one line or the other, never a mix. Two lines are live while the projection shape is being piloted: `@v1` is the workflow-only shape that predates it, `@v2` is the one described here. Reading what CI would have written is a separate path that stays available — see [debugging a red projection job](how-it-works.md#debugging-a-red-projection-job).
 
-Read on: **[How it works](how-it-works.md)** for the projection and CI flows, **[Cutting a release](releasing.md)** for the contract every harness that publishes one has to follow, or the **[before/after walk-through](example.md)** of converting a real plugin.
+Read on: **[How it works](how-it-works.md)** for the projection and CI flows, **[Suggestions and dependencies](suggestions-and-dependencies.md)** for the two blocks Claude Code reads and never reports on, **[Cutting a release](releasing.md)** for the contract every harness that publishes one has to follow, or the **[before/after walk-through](example.md)** of converting a real plugin.
 
 ---
 

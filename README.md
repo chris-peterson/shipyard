@@ -58,6 +58,8 @@ plugins:
 | `shipyard gen-plugins-js` | the plugins' `suite:` blocks → `docs/plugins.js` |
 | `shipyard gen-deps-json` | the plugins' `suite.dependencies` → `docs/deps.json` |
 
+A plugin can also declare who it reaches and what it needs: a `relevance:` block under `marketplace:`, which asks Claude Code to suggest it to sessions whose work matches, and a top-level `dependencies:` list of plugins to install alongside it. Claude Code reads both and reports on neither, so shipyard rejects the shapes it would load and ignore — see [Suggestions and dependencies](https://chris-peterson.github.io/shipyard/#/suggestions-and-dependencies).
+
 `generate` dispatches on the manifest it finds at `--root`, so the same verb drives
 both kinds: `plugin.yml` projects a plugin, `plugins.yml` projects an aggregator.
 The plugins are read from sibling checkouts beside the aggregator — the layout the

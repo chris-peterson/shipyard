@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import pathlib
 
+from . import _validate
 from ._common import load_plugin, plugin_root
 
 # plugin.json carries only the packaging fields, in this order. The rest of
@@ -22,11 +23,18 @@ PACKAGING_FIELDS = (
     "license",
     "keywords",
     "homepage",
+    "dependencies",
 )
 
 
 def build(root: str | pathlib.Path | None = None) -> str:
     spec = load_plugin(root)
+    if "dependencies" in spec:
+        # Only the aggregator can see allowCrossMarketplaceDependenciesOn, so a
+        # dependency's marketplace: is cross-checked there, not here.
+        _validate.raise_if(
+            _validate.dependency_errors(spec["dependencies"], spec.get("name", "")),
+            "plugin.yml declares dependencies Claude Code cannot resolve:")
     out = {}
     for field in PACKAGING_FIELDS:
         value = spec.get(field)
