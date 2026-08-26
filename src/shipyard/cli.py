@@ -18,6 +18,10 @@ only thing that runs it: ``actions/project`` projects on every push and commits
 the result to the branch, so a committed artifact matches its source at all times
 rather than only after a release, and the diff a reviewer approves is the change
 that lands.
+
+``validate`` is the one verb that reads rather than writes. It runs Claude Code's
+own ``plugin validate`` over the checkout, so the ruleset stays the runtime's;
+``actions/project`` runs it on what ``generate`` just wrote, before the commit.
 """
 from __future__ import annotations
 
@@ -70,6 +74,8 @@ def build_parser() -> argparse.ArgumentParser:
     add("gen-plugins-js", help="plugins' suite: blocks → docs/plugins.js")
     add("gen-deps-json", help="plugins' declared dependencies → docs/deps.json")
     add("generate", help="project source → artifacts")
+    add("validate", help="run Claude Code's own plugin validator over the "
+                         "checkout; warnings fail unless the manifest accepts them")
     return parser
 
 
@@ -138,6 +144,9 @@ def main(argv: list[str] | None = None) -> int:
         gen_cli_manifest.run(root)
         build_docs.run(root)
         return 0
+    if args.command == "validate":
+        from . import validate
+        return validate.run(root)
     return 1
 
 

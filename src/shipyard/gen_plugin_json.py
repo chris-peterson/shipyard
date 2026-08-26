@@ -11,15 +11,17 @@ import pathlib
 from . import _validate
 from ._common import load_plugin, plugin_root
 
-# plugin.json carries only the packaging fields, in this order. The rest of
-# plugin.yml (marketplace:, suite:) projects into other targets, not here.
+# plugin.json carries only the packaging fields Claude Code reads, in this
+# order. The rest of plugin.yml (marketplace:, suite:) projects into other
+# targets, not here, and a field the runtime doesn't recognize is left out —
+# `claude plugin validate` reports one as an unknown field, which is a warning
+# every consumer would then have to accept for a value nothing reads back.
 PACKAGING_FIELDS = (
     "name",
     "version",
     "description",
     "author",
     "repository",
-    "icon",
     "license",
     "keywords",
     "homepage",

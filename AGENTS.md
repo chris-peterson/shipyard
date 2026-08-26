@@ -48,6 +48,7 @@ src/shipyard/_common.py   root resolution and plugin.yml loading
 src/shipyard/gen_*.py     one module per projection
 src/shipyard/build_docs.py  renders skills/rules/guides/templates/references/SPEC.md/STATUS.md into docs/
 src/shipyard/links.py     docsify's routing and heading-slug rules, for the link rewrite and the link check
+src/shipyard/validate.py  the gate over `claude plugin validate`: read its report, apply plugin.yml's acceptances
 src/shipyard/cut.py       the local release driver: preflight, draft, preview, ship
 src/shipyard/git.py       the git the driver needs, and nothing else
 tests/                    pytest suites
@@ -120,6 +121,15 @@ in that window is a cherry-pick onto a `v1` branch and a re-cut tag.
 - **`generate` is the single projection verb.** The per-artifact `gen-*` commands
   exist for targeted use; anything CI should project happens under `generate`, so
   there is one thing to call and one thing to keep in sync.
+- **`validate` reads; it never writes.** It runs `claude plugin validate` over the
+  checkout and reports a verdict on the report. The ruleset stays the runtime's —
+  restating those checks here would fork them, the same trap `gen-cli-manifest`
+  avoids by invoking a CLI instead of parsing its source. What shipyard adds is
+  the verdict: an error fails, and so does a warning `plugin.yml` hasn't accepted
+  by name under `validate: accept:`, with a required `because`. An acceptance
+  matching nothing in the report fails too — its reason has outlived the warning.
+  The validator's version is pinned in `actions/project` because its ruleset
+  reaches every plugin at once; moving the pin is the planned sweep.
 - **A new CLI engine is a parser, not a special case.** `gen-cli-manifest`'s
   engines are keyed by name in `ENGINES` and all target the same manifest shape,
   so adding one (argparse, System.CommandLine) means writing a parser to that

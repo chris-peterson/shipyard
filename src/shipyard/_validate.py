@@ -3,12 +3,14 @@
 Both blocks are read by Claude Code alone, and neither reports back. A plugin
 whose signal name is misspelled makes every suggestion it would have made and
 tells nobody; a dependency whose `version` is not a semver range resolves to
-nothing until someone tries to install it. `claude plugin validate --strict`
-catches part of this and is worth running — it errors on an empty `signals`, a
-hostname carrying a scheme, an uncompilable regex, and a cap overrun, and warns
-on a misspelled signal name. It passes an invalid `version` range, a misspelled
-key on a dependency object, and a cross-marketplace dependency the root
-marketplace never allowlisted.
+nothing until someone tries to install it. `claude plugin validate`, which
+`validate.py` runs over the projected artifacts, catches part of this: it errors
+on an empty `signals`, a hostname carrying a scheme, an uncompilable regex, and a
+cap overrun, and warns on a misspelled signal name. It passes an invalid
+`version` range, a misspelled key on a dependency object, and a cross-marketplace
+dependency the root marketplace never allowlisted. Those are the ones here, and
+they are checked against `plugin.yml` as the projection runs — a plugin.json the
+validator would accept is not the same as a source that means what it says.
 
 The caps and the field semantics come from the upstream field reference:
 https://code.claude.com/docs/en/plugin-relevance

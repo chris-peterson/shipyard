@@ -51,6 +51,21 @@ runs:
       env:
         PYTHONPATH: ${{ github.action_path }}/../../src
 
+    # Pinned, because this validator's ruleset reaches every plugin at once: a
+    # release that adds a check would otherwise turn the whole suite red on the
+    # next unrelated push. Moving the pin is the deliberate sweep, same as any
+    # other change to what plugins call.
+    - run: npm install -g @anthropic-ai/claude-code@2.1.246
+      shell: bash
+
+    # Before the commit, so a source that projects into an invalid plugin never
+    # lands the artifact. Warnings fail unless plugin.yml accepts them by name.
+    - name: Validate the projected plugin
+      run: python3 -m shipyard validate
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.action_path }}/../../src
+
     - name: Commit and push the projection
       id: project
       shell: bash

@@ -187,6 +187,39 @@ The job terminates on its own: its push triggers a rerun that finds nothing to p
 
 **There is no drift gate.** A gate is what you build when the writer is a person with a local tool: CI can't produce the artifact, so it checks whether you remembered, and its failure message can only ever be *"run `generate` and commit"*.
 
+## Validation
+
+The projection job runs `claude plugin validate` over the checkout before it commits anything, so a source that projects into a plugin Claude Code would reject never lands the artifact. The validator reads the manifest and the frontmatter of every skill, agent, and command beside it; it needs no credentials, no config, and no network.
+
+shipyard runs it rather than restating its checks, for the same reason `gen-cli-manifest` invokes a CLI instead of parsing its source: the ruleset belongs to the runtime and moves with it. The version is pinned in the action, because a validator release that adds a check reaches every plugin at once — moving the pin is the deliberate sweep.
+
+**Warnings fail.** The validator's own exit code lets every warning through forever, and `--strict` fails on all of them with no way to say which ones a plugin has already thought about. So shipyard reads the report and fails on both, unless `plugin.yml` accepts the warning by name:
+
+```yaml
+validate:
+  accept:
+    - warning: root
+      because: >-
+        CLAUDE.md at the root is this repo's own agent instructions, not shipped
+        context. It is the only file Claude Code auto-loads, so the shim earns
+        the warning.
+    - warning: name
+      path: .claude-plugin/plugin.json
+      because: renaming would break every installed copy.
+```
+
+`because` is required: an acceptance with no reason beside it is indistinguishable from a warning somebody silenced to get a build green. `path` is optional, and narrows the acceptance to findings from one file — worth adding when the field name is a common one, since `description` names both a manifest field and a skill's frontmatter.
+
+An acceptance that matches nothing in the report is an error too. The reason it records has outlived the warning it explains, and the next reader would take it for a live exception.
+
+An **error** is never acceptable. An unknown field is a judgment call; a wrong-typed one is a broken plugin.
+
+Run the same check yourself the same way you'd run any other:
+
+```bash
+uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard validate
+```
+
 ## Debugging a red projection job
 
 Nothing *writes* an artifact from a laptop. Reading what CI would have written is a different thing, and it's what you want the moment the job goes red. shipyard declares a console script, so one command runs the same CLI the action runs, with no checkout and no install:
