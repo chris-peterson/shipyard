@@ -10,6 +10,37 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## 2.4.0
+
+### Added
+
+- **The projection job validates the plugin before it commits.**
+  `actions/project` runs `claude plugin validate` over the checkout and gates on
+  its report, so a source that projects into a manifest Claude Code would refuse
+  fails the job instead of landing on your branch. An error always fails; a
+  warning fails unless `plugin.yml` names it under `validate: accept:` with a
+  required `because`. An acceptance matching nothing in the report fails too,
+  since its reason has outlived the warning it explains. The validator's version
+  is pinned in the action, because its ruleset reaches every plugin at once.
+
+### Changed
+
+- **`icon` no longer projects into `plugin.json`.** The runtime doesn't
+  recognize the key and nothing in shipyard reads it back, so projecting it
+  bought every plugin a validator warning to accept for a value that did
+  nothing. If you added a `validate: accept:` entry to cover that warning,
+  remove it — an acceptance matching nothing now fails the job.
+
+### Fixed
+
+- **The dispatched release keeps shipyard's own checkout out of the release
+  commit.** `release.yml` checks shipyard out at `.shipyard`, inside the
+  plugin's working tree, and staged that tree with an unqualified `git add -A`.
+  `actions/checkout` leaves a `.git` there, so git recorded the directory as a
+  gitlink and each release commit landed a submodule the plugin never declared,
+  with no `.gitmodules` to describe it. A `.shipyard` entry a past release
+  already committed still has to be removed by hand.
+
 ## 2.3.1
 
 ### Fixed
