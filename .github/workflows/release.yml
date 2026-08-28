@@ -99,7 +99,15 @@ jobs:
           # -A for the same reason actions/project uses it: which paths are
           # projections is shipyard's to change, and a named list here would make
           # each new one a change to every caller. Ignored files stay out.
-          git add -A
+          #
+          # .shipyard has to stay out. This job parks shipyard's own checkout
+          # there, inside the plugin's working tree, and actions/checkout leaves a
+          # .git in it, so an unqualified -A records it as a gitlink and commits a
+          # submodule the plugin never declared. `:!` is git's exclude pathspec
+          # magic, not a regex, and a bare directory name covers everything under
+          # it: the add is the whole tree minus .shipyard/.
+          # https://git-scm.com/docs/gitglossary#def_pathspec
+          git add -A -- . ':!.shipyard'
           git commit -m "Release v$VERSION"
           git push origin HEAD:main
 
