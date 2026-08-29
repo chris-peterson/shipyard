@@ -301,6 +301,50 @@ def test_the_cmds_order_leads_and_the_rest_follow(home):
     assert home.index("/demo:build") < home.index("/demo:audit")
 
 
+SAME_NAME_YML = """\
+name: demo
+suite:
+  cmds:
+    - ["/demo:demo", "Label a pane, or set status with a note"]
+    - ["demo", "Read the resolved project / task / status anywhere"]
+  describe:
+    skills:
+      demo: From the skill's own frontmatter.
+"""
+
+
+def test_a_cli_sharing_a_skills_name_does_not_title_the_skills_row(tmp_path):
+    """A plugin can ship a skill and a CLI of the same name, and their `cmds`
+    copy addresses different readers: one a session, one someone at a terminal.
+    The skill's row carries the skill's line, and the CLI's reaches no table."""
+    (tmp_path / "skills" / "demo").mkdir(parents=True)
+    (tmp_path / "skills" / "demo" / "SKILL.md").write_text("# demo\n")
+    home = _home_plugin(tmp_path, SAME_NAME_YML)
+
+    assert "| [`/demo:demo`](/skills/demo) | Label a pane, or set status with a note |" in home
+    assert "Read the resolved project" not in home
+
+
+SKILL_AND_COMMAND_YML = """\
+name: demo
+suite:
+  describe:
+    skills:
+      sync: What the skill does.
+    commands:
+      sync: What the command does.
+"""
+
+
+def test_a_skill_and_a_command_of_one_name_keep_their_own_descriptions(tmp_path):
+    (tmp_path / "skills" / "sync").mkdir(parents=True)
+    (tmp_path / "skills" / "sync" / "SKILL.md").write_text("# sync\n")
+    home = _home_plugin(tmp_path, SKILL_AND_COMMAND_YML)
+
+    assert "| [`/demo:sync`](/skills/sync) | What the skill does. |" in home
+    assert "| `sync` | What the command does. |" in home
+
+
 def test_the_wiring_entry_leads_the_hooks_section_instead_of_posing_as_a_hook(home):
     """gen-describe files hooks.json under the reserved name `hooks`; a row
     called `hooks` in a table of hooks reads as a hook the plugin doesn't have."""
