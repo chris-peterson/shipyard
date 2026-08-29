@@ -21,7 +21,7 @@ pip install -e ".[dev]"
 pytest
 
 python3 -m shipyard generate --root ../some-plugin
-python3 -m shipyard release --root ../some-plugin   # drafts, then ships
+python3 -m shipyard release                        # shipyard's own release; a plugin dispatches its Release workflow
 ```
 
 Running `generate` against a real plugin checkout is worth doing before pushing a
@@ -155,16 +155,21 @@ in that window is a cherry-pick onto a `v1` branch and a re-cut tag.
   for the local read above, and no projector may require it.
 - **Hook descriptions come from `hooks.yml`**, not from a comment convention in
   the hook scripts. `gen-describe` reads them straight from the declaration.
-- **`release` is the single release verb, and it runs locally.** Every check a
-  release needs is answerable from the checkout, so `cut.py` answers them there,
-  before the first write — where the dispatched workflow could only fail a run
-  after the fact and could not show the version or the body until both were
-  permanent. It is the one place a committed artifact is written outside CI, and
-  the carve-out is held by a preflight: a checkout whose `plugin.json` disagrees
-  with `plugin.yml` is refused, because that is a commit the projection job still
-  owes the branch and a release would land it after the tag. `stage-release` is
-  the pure step the reusable `release.yml` still calls for plugins that have not
-  converted.
+- **A plugin releases through CI; shipyard releases itself locally.** Two drivers
+  over one ordering, and which one a repo uses follows from what it is rather than
+  from how far it has converted. A plugin writes its notes into `CHANGELOG.md`'s
+  `## Unreleased`, commits them, and dispatches its own `release.yml` with a bump
+  level; that calls the reusable `release.yml` here, whose `stage-release` step
+  derives the version, retitles the section, commits, tags *that* commit,
+  publishes from the section, and dispatches the marketplace rebuild. Every plugin
+  in the suite is on this path, and it is the one the docs recommend.
+  shipyard has no caller of its own to dispatch, so it releases from the
+  operator's checkout with `cut.py` — the `release` verb — which answers the same
+  questions before the first write instead of in a finished run. `cut.py` holds
+  the one carve-out where a committed artifact is written outside CI, behind a
+  preflight: a checkout whose `plugin.json` disagrees with `plugin.yml` is
+  refused, because that is a commit the projection job still owes the branch and a
+  release would land it after the tag.
 
 ## Glossary
 

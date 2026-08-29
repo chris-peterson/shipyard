@@ -1,5 +1,31 @@
 # Cutting a release
 
+Two drivers over one ordering, and which one you want follows from what you are releasing. **A plugin releases through CI**: you commit the notes, then dispatch its `Release` workflow with a bump level. **shipyard releases itself from a checkout**, with the `release` verb, because it has no caller of its own to dispatch.
+
+Both end the same way, and the ordering is the part that matters either way: the notes and the version bump are one commit, the tag names *that* commit, and the release body is the changelog section byte for byte. Why that ordering is the whole design is in [How it works](how-it-works.md#the-release-flow).
+
+## Releasing a plugin
+
+Everything you decide happens in `CHANGELOG.md`, before you touch the workflow.
+
+1. **Read what landed.** This is the same reading that picks the bump level, so do it once:
+
+   ```bash
+   git log $(git describe --tags --abbrev=0)..main --no-merges
+   ```
+
+2. **Write the notes** into `CHANGELOG.md` under `## Unreleased`, using `### Added` / `### Changed` / `### Fixed` / `### Removed`. A commit subject is written for someone reading the repo's history; a changelog line is written for someone *using* the plugin, and no mechanical rewrite of the first produces the second.
+
+3. **Commit and push them.** The workflow reads the notes out of `main`, so an uncommitted section publishes an empty release.
+
+4. **Dispatch `Release`** from the Actions tab, choosing `patch`, `minor`, or `major`. Pick the level from the notes you just wrote: a `### Removed` entry is a major, a `### Added` entry is a minor, anything else is a patch.
+
+From there CI derives the version from `plugin.yml`, retitles your `## Unreleased` section to it, regenerates the artifacts, commits, tags that commit, publishes the release from the section, and dispatches the marketplace rebuild. Nothing is left for you to do afterwards.
+
+The bump is the one answer the workflow can't check for you. It asks because it can't read intent out of prose: a breaking change filed under `### Changed` is indistinguishable from a rewording. When the two readings differ, over-bump — an over-bump spends a version number, an under-bump ships a break to someone pinning a range.
+
+## Releasing shipyard itself
+
 Two commands in the checkout you already have open.
 
 ```bash
@@ -10,9 +36,9 @@ shipyard release      # previews, asks once, then commits, tags, pushes, publish
 
 Which half runs is decided by `CHANGELOG.md`, not by a flag. An empty or absent `## Unreleased` means the notes don't exist yet, so it drafts them and stops. A section with notes in it means the release is ready, so it ships. Re-running is how you get from one to the other, and re-running after a failure picks up wherever the file now is.
 
-There is no workflow to dispatch, no bump level to choose in a form, and nothing to look up before you start.
+pyproject.toml carries the version in place of `plugin.yml`, and one extra step runs: the `vX` alias tag moves onto the new release, since consumers pin `uses: …@v2` and that has to keep resolving to the newest release on the line. A `vX` **branch** existing at the same time is refused up front — which one a consumer's `@v2` resolves to isn't something to leave to chance.
 
-## The first half: what landed, drafted
+### The first half: what landed, drafted
 
 `shipyard release` reads the commits since the last `vX.Y.Z` tag and writes them into `CHANGELOG.md` under `## Unreleased`, with the sections to sort them into:
 
@@ -43,7 +69,7 @@ Sorting it is the release's one piece of real work, and it's the same reading th
 
 **A worksheet cannot be published.** Releasing with the comment or the `### Unsorted` heading still in place is refused by name. A half-sorted section is never re-drafted over either — `--draft` is how you ask for a fresh worksheet, and it says so.
 
-## The second half: preview, then one confirmation
+### The second half: preview, then one confirmation
 
 Run it again and everything you'd otherwise learn from a finished CI run prints first:
 
@@ -91,7 +117,7 @@ Answering with a level re-runs rather than shipping, so the plan you approve is 
 
 Answering anything but `y` writes nothing.
 
-## What it does once you say yes
+### What it does once you say yes
 
 In this order, because the order is what makes the release, the tag, and the compare link agree:
 
@@ -104,9 +130,9 @@ In this order, because the order is what makes the release, the tag, and the com
 
 The three things that used to disagree now can't: the body *is* the section, the tag names a commit that already carries `## 1.3.0` and the bumped `plugin.json`, and the compare link contains all of it.
 
-## What stops a release before anything is written
+### What stops a release before anything is written
 
-Every one of these used to be a red CI run you had to open and read. They all run in the checkout, before the first write.
+All of these run in the checkout, before the first write.
 
 | Refusal | Why it matters |
 | --- | --- |
@@ -119,31 +145,10 @@ Every one of these used to be a red CI run you had to open and read. They all ru
 | `vX.Y.Z` already exists | releasing a version twice |
 | `gh` not authenticated | the publish would fail after the tag was already pushed |
 
-## A release never builds what it releases
+### A release never builds what it releases
 
 The projections a release checks are the ones that read YAML and write JSON — `plugin.json` and `hooks.json`. The CLI manifest is deliberately not among them, because verifying it means running your CLI, and running your CLI means building it first.
 
 That exclusion is the point. The step this replaced ran the full `generate` inside the release job, on a checkout with nothing built ahead of it. For a plugin whose committed entry point imports its dependencies at runtime, the CLI exited non-zero there and the release died *before* committing the version bump — leaving the repo mid-release, and needing a change to the plugin's own `cli: invoke:` to work around a step that had no business running there at all.
 
 So a release now reads only what it can read with pyyaml. If a projection needing your toolchain has drifted, that's the projection job's commit to make, and it makes it in your own build. Nothing about cutting a release depends on your build working.
-
-## What CI still does
-
-One thing, because it's the one thing that needs a repo secret: the marketplace rebuild. A plugin's whole `release.yml` becomes
-
-```yaml
-on:
-  release:
-    types: [published]
-
-jobs:
-  notify:
-    uses: chris-peterson/shipyard/.github/workflows/notify-marketplace.yml@v2
-    secrets: inherit
-```
-
-`MARKETPLACE_DISPATCH_TOKEN` can dispatch across repositories where the default `GITHUB_TOKEN` can't, and a secret only exists inside Actions. Because the release is published with your own credentials rather than Actions' token, the `release: published` event carries through and starts this run.
-
-## Releasing shipyard itself
-
-The same command, from a shipyard checkout. `pyproject.toml` carries the version in place of `plugin.yml`, and one extra step runs: the `vX` alias tag moves onto the new release, since consumers pin `uses: …@v2` and that has to keep resolving to the newest release on the line. A `vX` **branch** existing at the same time is refused up front — which one a consumer's `@v2` resolves to isn't something to leave to chance.

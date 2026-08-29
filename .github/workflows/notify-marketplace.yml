@@ -1,14 +1,14 @@
 name: Notify marketplace (shipyard)
 
-# The one part of a release that cannot happen in the operator's checkout.
-# `shipyard release` runs locally and does everything else: it commits the bump,
-# tags that commit, pushes both atomically, and publishes the release from the
-# changelog section it committed. Dispatching the marketplace rebuild needs
+# The marketplace half of a release driven from a checkout instead of dispatched.
+# `shipyard release` does everything else locally: it commits the bump, tags that
+# commit, pushes both atomically, and publishes the release from the changelog
+# section it committed. Only the rebuild is left over, because dispatching it needs
 # MARKETPLACE_DISPATCH_TOKEN — a token allowed to repository_dispatch to
 # chris-peterson/claude-marketplace, since the default GITHUB_TOKEN cannot
 # dispatch across repositories — and a repo secret only exists inside Actions.
 #
-# So a plugin's whole release.yml becomes:
+# A repo on that path carries a release.yml of:
 #
 #   on:
 #     release:

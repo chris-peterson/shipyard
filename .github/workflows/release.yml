@@ -1,18 +1,15 @@
 name: Release (shipyard)
 
-# The dispatched release, for plugins still on it. `shipyard release` supersedes
-# it: same ordering, run from the operator's checkout, where the version, the
-# body, and every refusal are visible before the first write instead of in a
-# finished run. A plugin converts by replacing its release.yml with the
-# `release: published` caller of notify-marketplace.yml, described in
-# docs/releasing.md.
+# The release path every plugin in the suite uses, and the one docs/releasing.md
+# recommends. A plugin calls this from its own release.yml under a
+# `workflow_dispatch` whose only input is the bump level, after committing the
+# notes it wants published to CHANGELOG.md's `## Unreleased` section.
 #
-# A plugin calls this from its own release.yml under a `workflow_dispatch` whose
-# only input is the bump level. It derives the next version from plugin.yml,
-# retitles CHANGELOG.md's `## Unreleased` section to it, regenerates the
-# artifacts, commits, **then** tags that commit, publishes the release from the
-# section it just wrote, and dispatches the marketplace rebuild. The plugin name
-# comes from the caller's repository, so nothing here is plugin-specific.
+# It derives the next version from plugin.yml, retitles that section to it,
+# regenerates the artifacts, commits, **then** tags that commit, publishes the
+# release from the section it just wrote, and dispatches the marketplace rebuild.
+# The plugin name comes from the caller's repository, so nothing here is
+# plugin-specific.
 #
 # The order is the point. The trigger used to be `release: published`, so a human
 # cut the tag before this ran and the bump commit always landed *after* the tag

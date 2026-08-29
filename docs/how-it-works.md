@@ -234,6 +234,23 @@ git restore .        # discard it; CI is still the only writer
 repo. The exception is the first run after a *new* projection lands: that artifact
 arrives untracked, so `git status` is what tells you it's there.
 
+Every plugin in the suite wraps that read in one recipe, and it is named `check` in
+all of them:
+
+```just
+shipyard := "uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard"
+
+# read what the projection job would commit, without keeping it; `git restore .` discards
+check:
+    {{shipyard}} generate
+    git --no-pager diff --stat
+```
+
+A plugin that declares a `cli:` block writes `check: build` instead, because
+`gen-cli-manifest` interrogates the built CLI and there is nothing to interrogate
+until the build has run. One name across the suite is the point: `check` is the
+recipe to reach for in a repo you haven't opened before.
+
 Pin the same ref your workflows pin. Debugging a `@v2` job against `v1`'s generators reproduces the wrong shape, which is worse than not reproducing it at all.
 
 Every projector reads its input from the checkout, so anything wrong with the *source* reproduces identically — a malformed `plugin.yml` or `hooks.yml`, a dead docs link, a missing resource path, a CLI whose help the engine can't parse. What doesn't reproduce is the job's own machinery: a detached HEAD, a rejected push, a fork's read-only token. Those live only in the run, and the action names the fix in its own error.
@@ -247,40 +264,45 @@ npx docsify-cli serve docs
 
 ## The release flow
 
-`shipyard release`, run in the plugin checkout you already have open. It reads what landed, drafts the notes for you to shape, then — behind one confirmation — commits, tags that commit, pushes both in a single transaction, and publishes the release from the section it committed.
+A plugin releases through CI. You commit the notes to `CHANGELOG.md`, dispatch its `Release` workflow with a bump level, and the reusable workflow here does the rest in one run. shipyard releases *itself* through `cut.py` — the same ordering, driven from a checkout, because shipyard has no caller of its own to dispatch.
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
 sequenceDiagram
   actor You
-  participant SY as shipyard release
   participant GH as plugin repo
+  participant CI as shipyard release.yml
   participant MP as bridge.ai marketplace
-  You->>SY: shipyard release
-  SY->>SY: read commits since the last tag
-  SY->>You: worksheet in CHANGELOG.md
-  You->>You: rewrite it into notes
-  You->>SY: shipyard release
-  SY->>You: version, body, refs
-  You->>SY: yes
-  SY->>GH: push commit + tag, atomically
-  SY->>GH: publish from that section
-  GH->>MP: release published → dispatch
-  MP->>MP: rebuild the catalog from every plugin.yml
+  You->>You: read commits since the last tag
+  You->>GH: commit notes under Unreleased
+  You->>CI: dispatch Release, with a bump level
+  CI->>CI: derive version, retitle the section
+  CI->>GH: commit the bump, then tag it
+  CI->>GH: publish from that section
+  CI->>MP: dispatch the rebuild
+  MP->>MP: rebuild the catalog
 ```
 
 **Three artifacts, one commit.** The notes, the version in `plugin.yml`, and the `plugin.json` projected from it land together as `Release v1.3.0`, and the tag names that commit. So the release body *is* the committed section, the tag names a commit that already carries the version, and the compare link between two tags contains the changelog. Those three used to disagree in whichever way the ordering happened to break that release.
 
-**The tag cannot precede its commit.** Both refs go up in one `git push --atomic`, so there is no window in which the tag exists and the commit it names does not. The failure this replaces is older than the atomic push: the trigger was once `release: published`, so a human cut the tag before any of this ran and the bump commit always landed *after* the tag naming it — `plugin.json` at a tag reported the previous version, and the changelog there had no section for it.
+**The version is derived before the tag exists.** The trigger was once `release: published`, so a human cut the tag before any of this ran and the bump commit always landed *after* the tag naming it — `plugin.json` at a tag reported the previous version, and the changelog there had no section for it. Deriving the version inside the run means the tag is cut from a commit that already carries it.
 
-**`CHANGELOG.md` is the source, not a destination.** The release body used to be authored outside the repo at publish time, which made it the source and left nothing constraining its shape — across the suite it took at least three incompatible forms, each now permanent in some changelog. Reading the notes out of the file makes a duplicated or mismatched heading unreachable rather than a shape the parser has to tolerate.
+**`CHANGELOG.md` is the source, not a destination.** The release body used to be authored outside the repo at publish time, which made it the source and left nothing constraining its shape — across the suite it took at least three incompatible forms, each now permanent in some changelog. Reading the notes out of the file makes a duplicated or mismatched heading unreachable rather than a shape the parser has to tolerate. It is also why the notes have to be committed *before* the dispatch: the run reads them from `main`.
 
-**The bump is read back, not asked for.** You decided a change was an addition, a removal, or a fix when you filed it under that heading, so the level comes from the headings the notes use. A dropdown asking for it a second time is a way for the two answers to disagree. Which heading decided it prints above the confirmation, and the confirmation takes an override.
+**The bump is the one thing asked for.** A heading names the kind of change, not whose contract it broke, so no rule reading the prose can tell a breaking `### Changed` from a rewording. The dispatch form asks for the level rather than inferring one it cannot check, and the guidance is to over-bump when the two readings differ: an over-bump spends a version number, an under-bump ships a break to someone pinning a range.
 
-**Local, because the answers are local.** Every check a release needs — is the section empty, is this version already tagged, does `plugin.json` match its source, which version is this going to be, what body will be attached — is computable in a second from the checkout. As a dispatched workflow each one was a red run to open and read, and the version and body weren't visible until after they were permanent. What stays in CI is the marketplace rebuild, which needs a repo secret and so can only run there.
+### Where the two drivers differ
 
-**The release commit is the one artifact CI doesn't write.** Everywhere else in the suite the projection job is the only writer. The carve-out is narrow: `plugin.json` is the only committed artifact a release changes, and its version is a one-key projection of `plugin.yml` needing pyyaml and nothing from the plugin's own toolchain. The driver holds that line by refusing to release a checkout whose `plugin.json` doesn't already match its source — that's a commit the projection job still owes the branch, and releasing would land it after the tag.
+The ordering above is identical either way. What changes is where the questions get answered.
 
-Nothing in the flow is plugin-specific, and shipyard releases *itself* with the same command — `pyproject.toml` in place of `plugin.yml`, plus the `vX` alias move its own consumers depend on.
+| | plugin, via `release.yml` | shipyard, via `cut.py` |
+| --- | --- | --- |
+| Bump level | chosen in the dispatch form | inferred from the notes' headings, shown, and overridable at the prompt |
+| Preflight | the run fails, and you read it afterwards | refusals print before the first write |
+| Version and body | visible once the run finishes | printed for confirmation beforehand |
+| Branch and tag | pushed in two steps from the runner | pushed together, atomically |
+| Who writes the release commit | CI, like every other artifact | the operator's checkout |
 
-What the person (or agent) driving a release does, and what each refusal is protecting, is in **[Cutting a release](releasing.md)**.
+That last row is why `cut.py` carries a preflight the workflow has no need of. Everywhere else in the suite the projection job is the only writer, so a local release commit is a carve-out: `plugin.json` is the only committed artifact a release changes, and its version is a one-key projection of `plugin.yml` needing pyyaml and nothing from the plugin's own toolchain. The driver holds that line by refusing to release a checkout whose `plugin.json` doesn't already match its source — that's a commit the projection job still owes the branch, and releasing would land it after the tag.
+
+What the person (or agent) driving either one does, step by step, is in **[Cutting a release](releasing.md)**.

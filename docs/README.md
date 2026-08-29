@@ -34,7 +34,7 @@ Every command runs against a target plugin repo (`--root <path>`, default: the c
 | `shipyard gen-describe` | source (skills/rules/hooks) → `plugin.yml` `suite.describe` |
 | `shipyard gen-plugin-docs` | `plugin.yml` `suite:` → `docs/plugin-docs.json` |
 | `shipyard build-docs` | `skills`,`rules`,`guides`,`templates`,`SPEC.md` → `docs/` (+ the docsify `index.html`, from `plugin.yml` `docs:`, and the home page `_home.md`, from `suite:`) |
-| `shipyard release` | not a projection: the release itself. Drafts this release's notes from what landed, then commits them with the version bump, tags that commit, pushes both, and publishes — [Cutting a release](releasing.md) |
+| `shipyard release` | not a projection: how shipyard releases itself. Drafts the notes from what landed, then commits them with the version bump, tags that commit, and publishes. A plugin dispatches its own `Release` workflow instead — [Cutting a release](releasing.md) |
 | `shipyard gen-cli-manifest` | the CLI declared in `plugin.yml` `cli:` → its committed grammar manifest |
 | `shipyard generate` | run every generator; CI runs this and commits the result to the branch |
 
@@ -57,7 +57,7 @@ A plugin can also declare who it reaches and what it needs: a `relevance:` block
 
 One touch-point in each plugin repo — no packaged install, and nothing to run locally to *build* an artifact:
 
-- **`.github/workflows/`** — `release.yml` and `deploy-docs.yml` are one-line callers of shipyard's [reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows), and `project.yml` runs the plugin's own build before shipyard's [`project` action](how-it-works.md#the-projection-job), which projects every artifact and pushes the result to the branch.
+- **`.github/workflows/`** — `release.yml` and `deploy-docs.yml` are one-line callers of shipyard's [reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows), and `project.yml` runs shipyard's [`project` action](how-it-works.md#the-projection-job), which projects every artifact and pushes the result to the branch. A plugin declaring a `cli:` block runs its own build first, since `gen-cli-manifest` invokes the built CLI.
 
 All of them pin the same major-version ref, and a repo is on one line or the other, never a mix. Two lines are live while the projection shape is being piloted: `@v1` is the workflow-only shape that predates it, `@v2` is the one described here. Reading what CI would have written is a separate path that stays available — see [debugging a red projection job](how-it-works.md#debugging-a-red-projection-job).
 
