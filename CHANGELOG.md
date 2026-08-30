@@ -10,39 +10,42 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
-## Unreleased
+## 2.5.0
 
 ### Added
 
-- **`gen-cli-manifest` reads argparse CLIs.** Declare `engine: argparse` and the
-  generator records the grammar of a Python CLI the same way it records a
-  hand-written `Usage:` block. argparse prints a command's arguments only in that
-  command's own help, so the engine probes — it reads the subcommand names and
-  their one-line summaries off the top level, then runs
-  `<invoke> <command> --help` for each, and again for the nested ones. The `-h`
-  argparse adds to every parser stays out of the per-command recording, where it
-  would freeze the framework's boilerplate rather than the CLI's grammar; the
-  root usage keeps it.
+- **A plugin whose CLI is argparse gets a command reference.** Declare
+  `engine: argparse` in `plugin.yml`'s `cli:` block and `gen-cli-manifest` records
+  its command and flag grammar the same way it does a hand-written `Usage:` block,
+  so the generated `/cli` page and the manifest that guards it are available to
+  Python CLIs.
 
-- **The home page's marks row is also published on its own**, as `docs/_tags.md`.
-  A site whose home page is hand-written rather than the generated `_home.md` gets
-  the row with one `[](_tags.md ':include')`, and the version in it stays the one
-  `plugin.yml` carries, which the release bumps.
+- **`docs/_tags.md`** publishes the home page's marks row on its own, for a site
+  whose home page is hand-written rather than the generated `_home.md`. Include it
+  with `[](_tags.md ':include')`; the version in it still comes from `plugin.yml`.
 
 ### Changed
 
-- **A docs site's `cli` mark links to its command reference.** The mark says the
-  plugin ships a command you run in your own shell, which is the point a reader
-  wants the list; it now goes to `/cli` wherever the reference page exists, and
-  stays a plain mark where it doesn't.
+- **The `cli` mark links to the command reference** wherever that page exists — on
+  the plugin's docs home page and on its marketplace card.
+
+- **The docs lead with the release path plugins actually use.** A plugin
+  dispatches its own `release.yml`; the local `shipyard release` verb is scoped to
+  shipyard. Following the previous guidance published a release without the
+  marketplace rebuild the dispatched workflow runs, leaving the catalog stale with
+  nothing failing to say so.
 
 ### Fixed
 
-- **The marks row renders its pills.** Its border and muted text resolved through
+- **A skill and a CLI of one name no longer share a description slot.** `cmds`
+  entries were keyed on the label with its prefix stripped, so `/beacon:beacon`
+  and `beacon` collided and the home page printed the CLI's line on the skill's
+  row. The leading `/` now decides which is which.
+
+- **The marks row draws its pills.** Its border and muted text resolved through
   two custom properties the docsify theme doesn't define, and an undefined
-  property inside the `border` shorthand invalidates the whole declaration — so
-  the pills had no outline at all and the marks read as loose words beside the
-  title. Both now fall back to a value that exists.
+  property inside the `border` shorthand invalidates the whole declaration, so the
+  marks read as loose words beside the title.
 
 ## 2.4.0
 
