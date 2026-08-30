@@ -13,7 +13,7 @@ says a plugin ships one::
 
     cli:
       invoke: node dist/cli.js     # or: python -m mytool, dotnet run --project …
-      engine: usage-lines          # picks the help-output parser
+      engine: usage-lines          # or argparse; picks the help-output parser
       manifest: spec/v1/cli.yml    # where the projection lands
 
 ``invoke`` keeps shipyard engine-agnostic about *running* the CLI; ``engine``
@@ -264,10 +264,11 @@ def _normalize(commands: list[dict]) -> None:
             command["subcommands"] = subcommands
 
 
-def parse_usage_lines(text: str) -> dict:
+def parse_usage_lines(text: str, probe=None) -> dict:
     """`Usage:` block → the manifest body. Raises when the block is absent or
     yields nothing: a CLI this engine can't read is a declaration error, not an
-    empty grammar."""
+    empty grammar. `probe` goes unused — every form this engine reads is printed
+    by the one invocation."""
     lines = text.splitlines()
     start = next((i for i, l in enumerate(lines) if _USAGE_HEADING.match(l)), None)
     if start is None:
@@ -313,7 +314,275 @@ def parse_usage_lines(text: str) -> dict:
     return {"name": program, "usages": manifest_usages, "commands": commands}
 
 
-ENGINES = {"usage-lines": parse_usage_lines}
+# ---- the argparse engine ---------------------------------------------------
+#
+# argparse prints one wrapped `usage:` line per parser and documents a
+# subcommand's own grammar nowhere but in that subcommand's help. So one
+# invocation can't yield the tree the way a hand-written `Usage:` block can:
+# this engine reads the subcommand list off the top-level help, then probes
+# `<invoke> <command> --help` for each and parses the line it prints.
+#
+#     usage: beacon wip [-h] [--json] [--since WHEN] [--all]
+#            └ program + path   └ switch  └ flag with an argument
+#
+# Brackets carry the same grammar they do in a hand-written block: `[x]`
+# optional, `x ...` repeatable, `[--a | --b]` a mutually exclusive group. Braces
+# are argparse's own: `{a,b,c}` is an alternation, and `{a,b,c} ...` is how it
+# writes the subcommand dispatch itself.
+
+# argparse gives every parser a `-h`, so recording it once per command would
+# freeze argparse's boilerplate rather than the CLI's grammar — its absence from
+# a diff could never mean anything. The root usage keeps it, where `prog --help`
+# is a form a reader calls.
+_ARGPARSE_BUILTIN_HELP = ("-h", "--help")
+
+_ARGPARSE_ALTERNATION = re.compile(r"^\{(.+)\}$")
+
+
+def _argparse_usage(text: str, invoked: str) -> str:
+    """The `usage:` line, unwrapped. argparse wraps it across continuation lines
+    indented under the program name and ends it at the first blank line."""
+    lines = text.splitlines()
+    start = next((i for i, l in enumerate(lines) if _USAGE_HEADING.match(l)), None)
+    if start is None:
+        raise SystemExit(
+            "shipyard gen-cli-manifest: the argparse engine found no `usage:` line "
+            f"in the help for `{invoked}`. Check the declared `engine:`.")
+    parts = [_USAGE_HEADING.match(lines[start]).group(1).strip()]
+    for line in lines[start + 1:]:
+        if not line.strip() or not line[:1].isspace():
+            break
+        parts.append(line.strip())
+    form = " ".join(p for p in parts if p)
+    if not form:
+        raise SystemExit(
+            "shipyard gen-cli-manifest: the argparse engine found a `usage:` "
+            f"heading with nothing after it in the help for `{invoked}`.")
+    return form
+
+
+def _argparse_tokens(form: str) -> list[str]:
+    """Split a usage line on the spaces that separate tokens — the ones outside
+    every bracket and brace, so `[--since WHEN]` and `{a,b}` stay whole."""
+    tokens: list[str] = []
+    depth = 0
+    current = ""
+    for ch in form:
+        if ch in "[{(":
+            depth += 1
+        elif ch in "]})":
+            depth -= 1
+        if ch == " " and depth == 0:
+            if current:
+                tokens.append(current)
+                current = ""
+            continue
+        current += ch
+    if current:
+        tokens.append(current)
+    return tokens
+
+
+def _argparse_alternation(token: str) -> list[str] | None:
+    """`{a,b,c}` → its alternatives, or None for anything else."""
+    m = _ARGPARSE_ALTERNATION.match(token)
+    if not m:
+        return None
+    parts = [p.strip() for p in m.group(1).split(",")]
+    return parts if len(parts) > 1 and all(parts) else None
+
+
+def _argparse_placeholder(token: str) -> str:
+    """The name the manifest records for a positional. An alternation is spelled
+    the way the usage-lines engine spells one, so a page reads the same whichever
+    engine recorded it; a one-member `{zsh}` is a placeholder argparse happened to
+    write in braces, and is recorded as the plain name it is."""
+    if alts := _argparse_alternation(token):
+        return "|".join(alts)
+    m = _ARGPARSE_ALTERNATION.match(token)
+    return m.group(1).strip() if m else token
+
+
+def _argparse_flag(token: str, *, required: bool, repeatable: bool) -> list[dict]:
+    """One flag token → the flag entries it documents. argparse writes a mutually
+    exclusive group as `[--merge | --replace]`, recorded as one entry per flag
+    naming its siblings so the relation survives a reordering."""
+    names = []
+    args = []
+    for part in (p.strip() for p in token.split("|")):
+        name, _, arg = part.partition(" ")
+        names.append(name)
+        args.append(_argparse_placeholder(arg.strip()) if arg.strip() else "")
+    if not all(n.startswith("-") for n in names):
+        raise SystemExit(
+            "shipyard gen-cli-manifest: the argparse engine can't record an "
+            f"alternation of a flag and a bare word: `{token}`")
+    entries = []
+    for name, arg in zip(names, args):
+        entry: dict = {"name": name}
+        if arg:
+            entry["arg"] = arg
+        if required:
+            entry["required"] = True
+        if repeatable:
+            entry["repeatable"] = True
+        if siblings := [n for n in names if n != name]:
+            entry["exclusive_with"] = siblings
+        entries.append(entry)
+    return entries
+
+
+def _argparse_form(form: str, skip: int, *, root: bool) -> tuple[dict, list[str]]:
+    """One usage line → the invocation form it documents, and the subcommands it
+    dispatches to. `skip` drops the leading program and command path, which the
+    caller already knows because it asked for this command's help."""
+    tokens = _argparse_tokens(form)[skip:]
+    args: list[dict] = []
+    flags: list[dict] = []
+    dispatch: list[str] = []
+    consumed: set[int] = set()
+    for index, token in enumerate(tokens):
+        if index in consumed:
+            continue
+        if token == "...":
+            # A bare ellipsis repeats the token before it. After the dispatch
+            # braces it is argparse's "and then the subcommand's own arguments",
+            # consumed there rather than read as a repeat.
+            if args:
+                args[-1]["repeatable"] = True
+            continue
+        optional = token.startswith("[") and token.endswith("]")
+        inner = token[1:-1].strip() if optional else token
+        repeatable = inner.endswith("...")
+        if repeatable:
+            inner = inner[:-3].strip()
+        if not optional and _argparse_alternation(inner) and index + 1 < len(tokens) \
+                and tokens[index + 1] == "...":
+            dispatch = _argparse_alternation(inner)
+            consumed.add(index + 1)
+            continue
+        if inner.startswith("-"):
+            # An unbracketed required flag is written apart from its argument
+            # (`--color {a,b}`); a bracketed one carries it inside the brackets.
+            following = tokens[index + 1] if index + 1 < len(tokens) else ""
+            if not optional and " " not in inner and following \
+                    and not following.startswith(("-", "[", ".")):
+                inner = f"{inner} {following}"
+                consumed.add(index + 1)
+            if not root and inner in _ARGPARSE_BUILTIN_HELP:
+                continue
+            flags += _argparse_flag(inner, required=not optional, repeatable=repeatable)
+            continue
+        entry: dict = {"name": _argparse_placeholder(inner)}
+        if alts := _argparse_alternation(inner):
+            entry["choices"] = alts
+        if optional:
+            entry["optional"] = True
+        if repeatable:
+            entry["repeatable"] = True
+        args.append(entry)
+    usage: dict = {}
+    if args:
+        usage["args"] = args
+    if flags:
+        usage["flags"] = flags
+    return usage, dispatch
+
+
+def _argparse_summaries(text: str, dispatch: list[str]) -> dict[str, str]:
+    """The one-line description argparse prints beside each subcommand, keyed by
+    name. A parser whose subcommands were declared without a `help=` prints the
+    braces and nothing else, so an absent summary is ordinary rather than an
+    error."""
+    remaining = set(dispatch)
+    summaries: dict[str, str] = {}
+    indent = None
+    current = None
+    for line in text.splitlines():
+        if not line.strip():
+            current = None
+            continue
+        here = len(line) - len(line.lstrip())
+        head = line.split(maxsplit=1)
+        name = head[0]
+        if name in remaining and (indent is None or here == indent):
+            indent = here
+            current = name
+            remaining.discard(name)
+            summaries[name] = head[1].strip() if len(head) > 1 else ""
+        elif current and indent is not None and here > indent:
+            # argparse wraps a long description onto its own deeper-indented
+            # lines, and puts the whole of one there when the name is too wide
+            # for the column. Its wrapper breaks after a hyphen as well as at a
+            # space, so a line ending in one is rejoined without adding one:
+            # `per-\npane` is one word.
+            held = summaries[current]
+            joiner = "" if held.endswith("-") else " "
+            summaries[current] = f"{held}{joiner}{line.strip()}".strip()
+        else:
+            current = None
+    return {k: v for k, v in summaries.items() if v}
+
+
+def _argparse_tree(program: str, path: list[str], dispatch: list[str],
+                   summaries: dict[str, str], probe) -> list[dict]:
+    commands = []
+    for name in dispatch:
+        here = [*path, name]
+        text = probe(here)
+        form = _argparse_usage(text, " ".join([program, *here]))
+        usage, below = _argparse_form(form, len(here) + 1, root=False)
+        if summary := summaries.get(name):
+            usage = {"summary": summary, **usage}
+        command: dict = {"name": name, "usages": [usage]}
+        if below:
+            command["subcommands"] = _argparse_tree(
+                program, here, below, _argparse_summaries(text, below), probe)
+        commands.append(command)
+    return commands
+
+
+def parse_argparse(text: str, probe) -> dict:
+    """Top-level help → the manifest body, probing each subcommand for its own.
+
+    Raises when a probe prints help this engine can't read: a tree missing a
+    branch reads exactly like a CLI that dropped one."""
+    form = _argparse_usage(text, "the CLI")
+    program = _argparse_tokens(form)[0]
+    usage, dispatch = _argparse_form(form, 1, root=True)
+    body = {
+        "name": program,
+        "usages": [usage] if usage else [],
+        "commands": _argparse_tree(
+            program, [], dispatch, _argparse_summaries(text, dispatch), probe),
+    }
+    if summary := _argparse_description(text):
+        body["summary"] = summary
+    return body
+
+
+def _argparse_description(text: str) -> str:
+    """The paragraph argparse prints under the usage line, when it is one line.
+
+    A CLI whose description runs to a paragraph is describing itself at a length
+    the page's title slot can't hold; `cli: lede:` in plugin.yml is where that
+    belongs, and guessing at a first sentence would be inventing a summary the
+    CLI never printed."""
+    lines = text.splitlines()
+    start = next((i for i, l in enumerate(lines) if _USAGE_HEADING.match(l)), None)
+    if start is None:
+        return ""
+    body = lines[start + 1:]
+    while body and (body[0].strip() and body[0][:1].isspace()):
+        body.pop(0)  # the usage line's own continuations
+    while body and not body[0].strip():
+        body.pop(0)
+    if not body or body[0][:1].isspace():
+        return ""
+    return "" if len(body) > 1 and body[1].strip() else body[0].strip()
+
+
+ENGINES = {"usage-lines": parse_usage_lines, "argparse": parse_argparse}
 
 
 # ---- invocation ------------------------------------------------------------
@@ -417,8 +686,15 @@ def build(root: str | pathlib.Path | None = None) -> str | None:
         return None
     proc = run_help(root, spec["invoke"])
     text = help_output(proc, spec["invoke"])
+
+    def probe(path: list[str]) -> str:
+        """The help for one command, for an engine whose CLI documents a
+        subcommand's grammar only there."""
+        invoke = " ".join([spec["invoke"], *(shlex.quote(p) for p in path)])
+        return help_output(run_help(root, invoke), invoke)
+
     try:
-        body = ENGINES[spec["engine"]](text)
+        body = ENGINES[spec["engine"]](text, probe)
     except SystemExit as exc:
         if note := _failed_run_note(proc, spec["invoke"]):
             raise SystemExit(f"{exc}\n{note}") from exc
@@ -429,7 +705,7 @@ def build(root: str | pathlib.Path | None = None) -> str | None:
         "name": body["name"],
         "engine": spec["engine"],
     }
-    if summary := _summary(text, body["name"]):
+    if summary := body.get("summary") or _summary(text, body["name"]):
         manifest["summary"] = summary
     if body["usages"]:
         manifest["usages"] = body["usages"]

@@ -59,6 +59,13 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
   `invoke` keeps shipyard engine-agnostic about *running* a CLI — it shells out to whatever you declare — while `engine` picks the parser, since a framework's help format is its own. A plugin that declares no `cli:` block is unaffected.
 
+  | `engine` | Reads | Invocations |
+  |---|---|---|
+  | `usage-lines` | a hand-written `Usage:` block, one invocation form per line | one |
+  | `argparse` | Python's argparse, whose per-command grammar is printed only by that command | one per command |
+
+  The difference in the third column is what a CLI's own help decides. A `Usage:` block states the whole tree at once; argparse gives the top-level help a list of subcommand names and their one-line summaries, and nothing about what any of them takes. So the argparse engine probes — it runs `<invoke> <command> --help` for each name it found, and again for each name those turn up. One thing it declines to record is the `-h` argparse adds to every parser: repeated on every command it freezes the framework's boilerplate rather than the CLI's grammar, and its absence from a diff could never mean anything. The root usage keeps it, where `prog --help` is a form a reader calls.
+
   Two things follow from the manifest being a recording of help output. It asserts what the CLI *documents*, which is not the same claim as what it accepts — a flag absent from `--help` is absent here. And it's never hand-edited: each run rewrites it, and a CLI whose help the engine can't parse fails the generator instead of writing a half-manifest, which would read exactly like a CLI that dropped half its commands.
 
   **This is the projection that needs the caller's own toolchain.** Every other one reads files the checkout already has; this one runs the CLI, which has to be built first. That's why the projection ships as an action you put in your own job after your build step, rather than a workflow that owns the job. What lands in the diff is the grammar itself:

@@ -10,6 +10,40 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Added
+
+- **`gen-cli-manifest` reads argparse CLIs.** Declare `engine: argparse` and the
+  generator records the grammar of a Python CLI the same way it records a
+  hand-written `Usage:` block. argparse prints a command's arguments only in that
+  command's own help, so the engine probes — it reads the subcommand names and
+  their one-line summaries off the top level, then runs
+  `<invoke> <command> --help` for each, and again for the nested ones. The `-h`
+  argparse adds to every parser stays out of the per-command recording, where it
+  would freeze the framework's boilerplate rather than the CLI's grammar; the
+  root usage keeps it.
+
+- **The home page's marks row is also published on its own**, as `docs/_tags.md`.
+  A site whose home page is hand-written rather than the generated `_home.md` gets
+  the row with one `[](_tags.md ':include')`, and the version in it stays the one
+  `plugin.yml` carries, which the release bumps.
+
+### Changed
+
+- **A docs site's `cli` mark links to its command reference.** The mark says the
+  plugin ships a command you run in your own shell, which is the point a reader
+  wants the list; it now goes to `/cli` wherever the reference page exists, and
+  stays a plain mark where it doesn't.
+
+### Fixed
+
+- **The marks row renders its pills.** Its border and muted text resolved through
+  two custom properties the docsify theme doesn't define, and an undefined
+  property inside the `border` shorthand invalidates the whole declaration — so
+  the pills had no outline at all and the marks read as loose words beside the
+  title. Both now fall back to a value that exists.
+
 ## 2.4.0
 
 ### Added

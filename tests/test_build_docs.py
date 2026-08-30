@@ -185,7 +185,7 @@ hooks:
 """
 
 
-def _home_plugin(tmp_path, plugin_yml=HOME_YML):
+def _home_plugin_root(tmp_path, plugin_yml=HOME_YML):
     (tmp_path / "plugin.yml").write_text(plugin_yml)
     (tmp_path / "hooks").mkdir()
     (tmp_path / "hooks" / "hooks.yml").write_text(HOOKS_YML)
@@ -198,7 +198,11 @@ def _home_plugin(tmp_path, plugin_yml=HOME_YML):
         (tmp_path / "skills" / skill / "SKILL.md").write_text(f"# {skill}\n")
     (tmp_path / "rules").mkdir()
     (tmp_path / "rules" / "stay-put.md").write_text("# stay put\n")
-    build_docs.run(tmp_path)
+    return tmp_path
+
+
+def _home_plugin(tmp_path, plugin_yml=HOME_YML):
+    build_docs.run(_home_plugin_root(tmp_path, plugin_yml))
     return (tmp_path / "docs" / "_home.md").read_text()
 
 
@@ -221,6 +225,34 @@ def test_the_version_tag_goes_to_the_published_release(home):
 def test_a_cli_plugin_is_marked_ahead_of_its_version(home):
     """Same order as the catalog card, so the two surfaces read alike."""
     assert '<span class="ph-tag ph-cli">cli</span><a class="ph-tag"' in home
+
+
+def test_the_marks_row_is_also_published_on_its_own(tmp_path):
+    """For a home page written by hand, which wants the row and not the page."""
+    root = _home_plugin_root(tmp_path)
+    build_docs.run(root)
+    tags = (root / "docs" / "_tags.md").read_text()
+
+    assert '<span class="ph-tag ph-cli">cli</span><a class="ph-tag"' in tags
+    assert ".ph-tags{" in tags, "the row carries the styles it needs"
+    assert "## Install" not in tags, "the row, not the generated home page"
+
+
+def test_a_plugin_with_nothing_to_mark_publishes_no_row(tmp_path):
+    root = _home_plugin_root(
+        tmp_path, HOME_YML.replace("  cli: true\n", "").replace("version: 2.1.0\n", ""))
+    build_docs.run(root)
+
+    assert not (root / "docs" / "_tags.md").exists()
+
+
+def test_the_cli_mark_goes_to_the_reference_page_where_there_is_one(tmp_path):
+    root = _home_plugin_root(tmp_path)
+    (root / "docs" / "cli.md").write_text("# demo\n")
+    build_docs.run(root)
+
+    assert ('<a class="ph-tag ph-cli" href="#/cli">cli</a>'
+            in (root / "docs" / "_home.md").read_text())
 
 
 def test_a_plugin_that_ships_no_cli_carries_no_mark(tmp_path):
