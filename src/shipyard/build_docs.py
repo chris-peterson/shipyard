@@ -2,8 +2,8 @@
 
   docs: pre_render: -> the plugin's own generators, run first (if declared)
   assets/* -> docs/*                                (resource paths, copied first)
-  skills/<name>/SKILL.md -> docs/skills/<name>.md   (frontmatter stripped, retitled
-                                                     `/<plugin>:<name>`)
+  skills/<name>/SKILL.md -> docs/skills/<name>.md   (frontmatter stripped, the
+                                                     `/<plugin>:<name>` fence added)
   skills/<name>/references/*.md -> docs/skills/<name>/references/*.md
   rules|guides|templates|references/*.md -> docs/<dir>/*.md   (if present)
   SPEC.md -> docs/spec.md                           (copied verbatim, if present)
@@ -388,12 +388,13 @@ _LEADING_H1 = re.compile(r"\A#\s+.*\n+")
 
 
 def _skill_page(body: str, plugin: str, skill: str) -> str:
-    """A skill's page, titled by the command that runs it. The body's own H1 is
-    the skill's prose name, which the reader already has from the sidebar and the
-    home page; what they came for is the string to type, so it titles the page and
-    repeats in a fence, where docsify-copy-code puts a button on it."""
-    command = f"/{plugin}:{skill}"
-    return f"# `{command}`\n\n```text\n{command}\n```\n\n" + _LEADING_H1.sub("", body)
+    """A skill's page, opening on the command that runs it. The body's H1 names
+    the skill in prose; what the reader came for is the string to type, so it
+    goes directly under that title in a fence, which is what docsify-copy-code
+    puts a button on."""
+    fence = f"```text\n/{plugin}:{skill}\n```\n\n"
+    title = _LEADING_H1.match(body)
+    return (title.group(0) + fence + body[title.end():]) if title else fence + body
 
 
 def declared_pre_render(spec: dict) -> list[str]:

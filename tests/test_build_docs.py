@@ -651,9 +651,9 @@ def test_a_wrong_typed_pre_render_value_is_refused():
         build_docs.declared_pre_render({"pre_render": {"a": True}})
 
 
-def test_a_skill_page_is_titled_by_the_command_that_runs_it(plugin):
-    """The page's reader wants the string to type. The skill body's own H1 is the
-    prose name, which the sidebar and the home page already carry."""
+def test_a_skill_page_opens_on_the_command_that_runs_it(plugin):
+    """The page's reader wants the string to type, and only a fence gets
+    docsify's copy button. The body's own H1 stays as the page title."""
     root, write = plugin
     write("skills/build/SKILL.md", "---\nname: build\n---\n# Build The Thing\n\nProse.\n")
     write("docs/README.md", "# demo")
@@ -661,11 +661,10 @@ def test_a_skill_page_is_titled_by_the_command_that_runs_it(plugin):
     build_docs.run(root)
 
     page = (root / "docs" / "skills" / "build.md").read_text()
-    assert page.startswith("# `/demo:build`\n\n```text\n/demo:build\n```\n\nProse.\n")
-    assert "Build The Thing" not in page
+    assert page == "# Build The Thing\n\n```text\n/demo:build\n```\n\nProse.\n"
 
 
-def test_a_skill_body_with_no_h1_keeps_all_of_its_prose(plugin):
+def test_a_skill_body_with_no_h1_leads_with_the_fence(plugin):
     root, write = plugin
     write("skills/build/SKILL.md", "---\nname: build\n---\nStraight into the prose.\n")
     write("docs/README.md", "# demo")
@@ -673,13 +672,12 @@ def test_a_skill_body_with_no_h1_keeps_all_of_its_prose(plugin):
     build_docs.run(root)
 
     page = (root / "docs" / "skills" / "build.md").read_text()
-    assert page.endswith("\nStraight into the prose.\n")
-    assert page.startswith("# `/demo:build`")
+    assert page == "```text\n/demo:build\n```\n\nStraight into the prose.\n"
 
 
-def test_a_skills_second_level_headings_survive_the_retitle(plugin):
-    """Only the leading H1 goes — a body heading matching that shape further down
-    is the skill's own structure, and its anchors are what in-page links use."""
+def test_a_skills_own_headings_survive_the_insert(plugin):
+    """The fence goes under the title and nowhere else — the body's headings keep
+    the anchors its in-page links resolve against."""
     root, write = plugin
     write("skills/build/SKILL.md",
           "---\nname: build\n---\n# Build\n\n## Step one\n\n# Not the title\n")
@@ -688,5 +686,6 @@ def test_a_skills_second_level_headings_survive_the_retitle(plugin):
     build_docs.run(root)
 
     page = (root / "docs" / "skills" / "build.md").read_text()
+    assert page.count("```text") == 1
     assert "## Step one" in page
     assert "# Not the title" in page
