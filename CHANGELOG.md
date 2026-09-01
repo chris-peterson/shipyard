@@ -10,7 +10,7 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
-## Unreleased
+## 2.6.0
 
 ### Added
 
