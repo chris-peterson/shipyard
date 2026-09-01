@@ -46,6 +46,8 @@ a change aimed at the wrong caller.
 src/shipyard/cli.py       the entry point and subcommand table
 src/shipyard/_common.py   root resolution and plugin.yml loading
 src/shipyard/gen_*.py     one module per projection
+src/shipyard/_aggregate.py  the roster, the groups, and the artifact log a catalog declares
+src/shipyard/changelog.py   CHANGELOG.md as the release's source of record, read and written
 src/shipyard/build_docs.py  renders skills/rules/guides/templates/references/SPEC.md/STATUS.md into docs/
 src/shipyard/links.py     docsify's routing and heading-slug rules, for the link rewrite and the link check
 src/shipyard/validate.py  the gate over `claude plugin validate`: read its report, apply plugin.yml's acceptances

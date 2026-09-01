@@ -69,10 +69,15 @@ def build_parser() -> argparse.ArgumentParser:
                        help="how far to advance the version")
     stage.add_argument("--notes-file", default=None,
                        help="write the released section here, for a publish step")
-    add("roster", help="plugins.yml → name/url pairs (no plugin checkouts needed)")
+    ros = add("roster", help="plugins.yml → name/url pairs (no plugin checkouts needed)")
+    ros.add_argument("--include-retired", action="store_true",
+                     help="also list the plugins the groups have retired, whose "
+                          "checkouts the growth view still reads")
     add("gen-marketplace-json", help="plugins.yml + plugins → .claude-plugin/marketplace.json")
     add("gen-plugins-js", help="plugins' suite: blocks → docs/plugins.js")
     add("gen-deps-json", help="plugins' declared dependencies → docs/deps.json")
+    add("gen-artifacts-json",
+        help="the artifact log + the spokes' releases → docs/artifacts.json")
     add("generate", help="project source → artifacts")
     add("validate", help="run Claude Code's own plugin validator over the "
                          "checkout; warnings fail unless the manifest accepts them")
@@ -81,11 +86,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _generate_aggregate(root: str | None) -> int:
     """The aggregator's projection. marketplace.json is the one committed
-    artifact; the doc-site data is regenerated on every deploy."""
-    from . import gen_deps_json, gen_marketplace_json, gen_plugins_js
+    artifact; the doc-site data is regenerated on every deploy.
+
+    The growth view is the one piece an aggregator opts into, by declaring the
+    artifact log it keeps — a catalog with no such log has no history to plot."""
+    from ._aggregate import load_manifest
+    from . import gen_artifacts_json, gen_deps_json, gen_marketplace_json, gen_plugins_js
     gen_marketplace_json.run(root)
     gen_plugins_js.run(root)
     gen_deps_json.run(root)
+    if load_manifest(root).get("artifacts"):
+        gen_artifacts_json.run(root)
     return 0
 
 
@@ -120,10 +131,13 @@ def main(argv: list[str] | None = None) -> int:
         return release.run(root, bump=args.bump, notes_file=args.notes_file)
     if args.command == "roster":
         from . import roster
-        return roster.run(root)
+        return roster.run(root, include_retired=args.include_retired)
     if args.command == "gen-marketplace-json":
         from . import gen_marketplace_json
         return gen_marketplace_json.run(root)
+    if args.command == "gen-artifacts-json":
+        from . import gen_artifacts_json
+        return gen_artifacts_json.run(root)
     if args.command == "gen-plugins-js":
         from . import gen_plugins_js
         return gen_plugins_js.run(root)

@@ -61,6 +61,26 @@ def dirty_paths(root: pathlib.Path) -> list[str]:
     return run(root, "diff", "--name-only", "HEAD").splitlines()
 
 
+def release_tags(root: pathlib.Path) -> list[tuple[str, str]]:
+    """Every `vX.Y.Z` tag with the ISO instant of the commit it points at,
+    oldest first.
+
+    A release's instant comes from the tag rather than from the forge because a
+    projection reads the checkout it was given. The two are the same CI run:
+    `stage-release` commits the retitled section, tags that commit, and publishes
+    from it, so the tag is where the version bump happened.
+    """
+    out = run(root, "for-each-ref", "--sort=creatordate",
+              "--format=%(refname:strip=2)%09%(creatordate:iso-strict)",
+              f"refs/tags/{RELEASE_TAG_GLOB}")
+    pairs = []
+    for line in out.splitlines():
+        if "\t" in line:
+            name, at = line.split("\t", 1)
+            pairs.append((name, at.strip()))
+    return pairs
+
+
 def last_release_tag(root: pathlib.Path) -> str | None:
     """The newest `vX.Y.Z` tag reachable from HEAD, or None on a repo with none."""
     try:

@@ -77,10 +77,10 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
 - **`build-docs`** — renders `skills/` (with each skill's own `references/`), `rules/`, `guides/`, `templates/`, `references/`, `SPEC.md`, `STATUS.md`, and any versioned `spec/<version>/SPEC.md` into `docs/`, plus `plugin-docs.json`. A committed CLI manifest also becomes a `docs/cli.md` command reference, which is where the recording pays for itself twice: the page can't drift from the binary the way a hand-maintained command table does. It renders from the *committed* manifest, so building the docs never needs the CLI built. When `plugin.yml` carries a `docs:` block it also projects the docsify `docs/index.html` (title/description from the packaging fields; `code_languages` and `mermaid` from `docs:`; the session player when a `suite:` is present) — so the bootstrap lives here once instead of a hand-copied file per plugin. The plugin's docsify site serves the result; nothing is hand-maintained twice.
 
-  **A skill's page is titled by the command that runs it.** The H1 is
-  `` `/<plugin>:<skill>` ``, followed by the same string in a fence so docsify's
-  copy button lands on it, and the prose H1 the `SKILL.md` opened with is dropped.
-  The two surfaces want different things from the same source: the skill body
+  **A skill's page opens on the command that runs it.** `/<plugin>:<skill>` goes
+  in a fence directly under the page's title, which is where docsify's copy button
+  lands; an inline code span gets no button, so the fence is the treatment. The
+  two surfaces want different things from the same source: the skill body
   addresses an agent already inside the skill, while a reader who navigated to its
   page is there to find out what to type.
 
@@ -143,11 +143,15 @@ flowchart LR
   log["artifacts log"] --> js["docs/plugins.js"]
   spokes --> js
   spokes --> deps["docs/deps.json"]
+  sync --> tags["each CHANGELOG and tag"]
+  log --> growth["docs/artifacts.json"]
+  tags --> growth
 ```
 
 - **`gen-marketplace-json`** — the roster plus each plugin's `plugin.yml` become the `marketplace.json` Claude Code reads at `marketplace add`. Generated and committed, the same split as `plugin.yml` → `plugin.json` one level up.
 - **`gen-plugins-js`** and **`gen-deps-json`** — the doc site's catalog data and dependency graph, projected from the plugins' `suite:` blocks. Render targets, regenerated on every docs build.
-- **`roster`** — prints the declared plugins as `name<TAB>url` pairs.
+- **`gen-artifacts-json`** — the growth view: the artifact log bucketed into weeks, one entry per dated change point, and every release the plugins have tagged. An aggregator opts in by declaring the log; one without it has no history to plot.
+- **`roster`** — prints the declared plugins as `name<TAB>url` pairs. `--include-retired` adds the plugins the groups have retired, which the growth view still reads.
 
 Two design points carry most of the weight:
 
@@ -156,6 +160,10 @@ Two design points carry most of the weight:
 **A rostered plugin with no `plugin.yml` is a hard error.** The alternative — skipping it, or falling back to a stale local copy — would publish an incomplete catalog that looks complete. Unsynced plugins fail the build instead.
 
 The artifact log is the one derived input: a rolling record of each plugin's named skills, rules, and hooks that the aggregator's recorder writes from the plugins' git state. shipyard reads it when `plugins.yml` declares an `artifacts:` path, replaying its `+`/`-` tokens to get the current member set, so the catalog can't list a skill a plugin no longer ships. Component names are never declared, only derived.
+
+**A release's notes come from the plugin's own CHANGELOG.md.** The growth view lists a release for every `vX.Y.Z` tag in a plugin's checkout, and reads its notes from the `## <version>` section beside it — the same section `stage-release` retitles, commits, tags, and publishes. So the catalog and the release page cannot say different things, and the projection needs no forge call to find out what shipped. `changelog.teaser` reduces that section to what a listing has room for: the alert it leads with, then each bucket and the bold lead-in of its first few bullets. A tag whose section is missing is listed as a release with no notes rather than skipped.
+
+**A catalog declares its groups; a plugin declares which one it is in.** `groups:` carries each group's key, accent, label, and the plugins it has `retired:`. Membership is the plugin's own `suite.group`, so the aggregator never restates it — and a `suite.group` naming no declared group fails the projection instead of quietly producing a plugin no catalog renders. A retired plugin is the one membership the aggregator does declare, because it has no roster entry left to read it from, and it keeps the group and slot it held while it shipped.
 
 A plugin may declare a dependency on something the roster doesn't carry — an optional backend the marketplace doesn't ship. Those edges survive into `deps.json` while `nodes` stays the roster; that gap is what lets the doc site's graph draw an outside plugin differently from a catalog one.
 

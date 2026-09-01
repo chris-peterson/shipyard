@@ -48,6 +48,7 @@ A marketplace or catalog site is the other kind of target. It declares a `plugin
 | `shipyard gen-marketplace-json` | `plugins.yml` + the plugins' `plugin.yml` → `.claude-plugin/marketplace.json` |
 | `shipyard gen-plugins-js` | the plugins' `suite:` blocks → `docs/plugins.js` |
 | `shipyard gen-deps-json` | the plugins' `suite.dependencies` → `docs/deps.json` |
+| `shipyard gen-artifacts-json` | the artifact log + the plugins' releases → `docs/artifacts.json` |
 
 A plugin can also declare who it reaches and what it needs: a `relevance:` block under `marketplace:`, which asks Claude Code to suggest it to sessions whose work matches, and a top-level `dependencies:` list of plugins to install alongside it. Claude Code reads both and reports on neither, so shipyard rejects the shapes it would load and ignore — see [Suggestions and dependencies](suggestions-and-dependencies.md).
 

@@ -12,14 +12,49 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
 
 ## Unreleased
 
+### Added
+
+- **`gen-artifacts-json` projects an aggregator's growth view.** The rolling
+  artifact log a catalog declares (`plugins.yml`'s `artifacts:`) plus its spokes'
+  releases become `docs/artifacts.json`: a weekly-bucketed total per plugin, one
+  entry per dated change point, and every release the spokes have tagged. A
+  release's notes come from the `## <version>` section of the spoke's
+  CHANGELOG.md and its instant from the tag, so the projection reads the
+  checkouts it was given and needs no forge call to find out what shipped. It
+  runs under `generate` for any aggregator that declares a log.
+- **`changelog.teaser` reduces a section to its headlines.** The alert a section
+  leads with, then each `###` bucket and the bold lead-in of its first few
+  bullets, as plain text with fenced blocks dropped. It reads the same shape
+  `retitle` publishes, so a catalog listing a release beside forty others shows
+  what changed without reprinting a document, and a bucket or lead-in convention
+  that changes changes in one place.
+- **A catalog declares its groups, and a plugin declares which one it is in.**
+  `plugins.yml`'s `groups:` carries each group's `key`, `accent` custom property,
+  `tag`, and the plugins it has `retired:`; membership is the plugin's own
+  `suite.group`. `gen-plugins-js` emits the groups beside `PLUGINS`, and a
+  `suite.group` naming no declared group fails the projection — so a plugin
+  cannot reach a catalog that would not render it.
+- **`roster --include-retired`** also lists the plugins the groups have retired,
+  resolved through the same URL template. Nothing a marketplace publishes names
+  them, but an aggregator that plots their history has to have cloned them.
+- **`gen-plugins-js` marks a plugin that has a command reference.** A `cli:`
+  block is what makes `build-docs` publish one, so the catalog card can send its
+  cli mark there rather than to a page that doesn't exist.
+
+### Fixed
+
+- **A changelog section bucketed with `## Fixed` reads as its own notes.** The
+  section boundary took any `## ` as the start of the next version, so a section
+  whose buckets were written at H2 rather than H3 ended at its first bucket and
+  published as empty. It now ends at the next heading that names a version, which
+  recovered notes for ten releases across the suite.
+
 ### Changed
 
-- **A skill's docs page is titled by the command that runs it.** `build-docs`
-  gives `docs/skills/<name>.md` an H1 of `` `/<plugin>:<name>` `` followed by the
-  same string in a fence, where docsify's copy button lands on it, and drops the
-  prose H1 the skill body opened with. A reader arriving at the page for a skill
-  wants the string to type; the prose name is already on the home page and in the
-  sidebar.
+- **A skill's docs page opens on the command that runs it.** `build-docs` puts
+  `/<plugin>:<name>` in a fence directly under the page's title, where docsify's
+  copy button lands on it. A reader arriving at the page for a skill wants the
+  string to type, and the skill body's H1 names it only in prose.
 
 ## 2.5.0
 

@@ -36,9 +36,16 @@ def _staged_index(lines: list[str]) -> int | None:
     return None
 
 
+# A section ends at the next *version* heading, not at the next `## ` of any kind.
+# The drafted skeleton buckets a section with `###`, but sections written before
+# that used `## Fixed` — and reading those as a version boundary makes the section
+# above them look empty, so a release's notes silently become nothing.
+_VERSION_HEADING = re.compile(r"^##\s+(?:\[?unreleased\]?|\d.*)$", re.IGNORECASE)
+
+
 def _section_end(lines: list[str], start: int) -> int:
     for i in range(start + 1, len(lines)):
-        if lines[i].startswith("## "):
+        if _VERSION_HEADING.match(lines[i]):
             return i
     return len(lines)
 
@@ -96,6 +103,22 @@ def section(version: str, root: str | pathlib.Path | None = None) -> str:
     return "\n".join(lines[idx + 1:_section_end(lines, idx)]).strip()
 
 
+def released_body(version: str, root: str | pathlib.Path | None = None) -> str | None:
+    """A released version's section, or None when the file has no such heading.
+
+    `section` is the same read with a publish's demands attached; this one reports
+    the file's state without judging it, for a reader that has to describe a
+    version the changelog never got a section for.
+    """
+    path = _changelog(root)
+    lines = path.read_text().splitlines()
+    header = f"## {version}"
+    idx = next((i for i, l in enumerate(lines) if l.strip() == header), None)
+    if idx is None:
+        return None
+    return "\n".join(lines[idx + 1:_section_end(lines, idx)]).strip()
+
+
 def retitle(version: str, root: str | pathlib.Path | None = None) -> str:
     """Rename the staged `## Unreleased` section to `## <version>` in place.
 
@@ -145,6 +168,107 @@ def subsections(body: str) -> dict[str, str]:
             found[current].append(line)
     return {k: "\n".join(v).strip() for k, v in found.items()
             if "\n".join(v).strip()}
+
+
+# ---- the teaser --------------------------------------------------------------
+# A section is written to be read on the release page: an alert a reader has to
+# act on before upgrading, `###` buckets, and a bullet per change whose bold
+# lead-in is its headline. A catalog listing a release beside forty others has
+# room for the headlines and nothing else, so `teaser` keeps those and drops the
+# prose under them. It reads the same shape `retitle` publishes, which is why it
+# lives here rather than in the consumer: a bucket heading or a lead-in
+# convention that changes changes in one place.
+TEASER_ITEMS = 3      # bullets kept per bucket; the rest are counted
+TEASER_BUCKETS = 5    # buckets kept per release; the rest are counted
+TEASER_CHARS = 96     # a headline is one scannable line, not a paragraph
+
+_ALERT = re.compile(r"^\[!\w+\]$")
+_BULLET = re.compile(r"^[-*+]\s+(.+)$")
+_HEADING = re.compile(r"^#{1,6}\s+(.+)$")
+_LEAD_IN = re.compile(r"\s*\*\*(.+?)\*\*")
+
+
+def _plain(text: str) -> str:
+    """Markdown inline spans flattened to the text they mark up.
+
+    An underscore is only emphasis at a word boundary. `created_at` carries its
+    own, and stripping that leaves a word naming nothing the reader can search
+    the repo for.
+    """
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"[`*]+", "", text)
+    text = re.sub(r"(?<![\w_])_{1,2}(?=\S)|(?<=\S)_{1,2}(?![\w_])", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _headline(text: str) -> str:
+    """A bullet's bold lead-in, else its first sentence, clipped to one line."""
+    lead_in = _LEAD_IN.match(text)
+    head = _plain(lead_in.group(1) if lead_in else text.split(". ")[0])
+    head = head.rstrip(" .:-")
+    if len(head) <= TEASER_CHARS:
+        return head
+    return head[:TEASER_CHARS - 1].rstrip() + "\u2026"
+
+
+def teaser(body: str) -> dict:
+    """A section reduced to ``{alert, buckets: [{title, items, more}], more}``.
+
+    Fenced blocks go whole: a one-time setup command is the reason to open the
+    release page, not something to reprint in a listing. A GitHub alert is the
+    one thing read out of order, since a section leads with it exactly when it
+    carries something to do before upgrading. A bucket with no bullets falls back
+    to its opening paragraph, which is the whole of the sections written as a
+    heading naming the change and prose explaining it.
+    """
+    alert, buckets, fenced = "", [], False
+    cur: dict | None = None
+
+    def bucket(title: str = "") -> dict:
+        buckets.append(fresh := {"title": title, "items": [], "para": ""})
+        return fresh
+
+    for raw in (body or "").replace("\r\n", "\n").split("\n"):
+        line = raw.rstrip()
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        if line.startswith(">"):
+            quoted = line.lstrip("> ").strip()
+            if quoted and not _ALERT.match(quoted) and not alert:
+                alert = _headline(quoted)
+            continue
+        if heading := _HEADING.match(line):
+            cur = bucket(_plain(heading.group(1)))
+            continue
+        if not line.strip():
+            continue
+        cur = cur or bucket()
+        if bullet := _BULLET.match(line):
+            cur["items"].append(_headline(bullet.group(1)))
+        elif not cur["items"] and not cur["para"]:
+            cur["para"] = _headline(line)
+
+    kept = []
+    for b in buckets:
+        items = b["items"][:TEASER_ITEMS] or ([b["para"]] if b["para"] else [])
+        if not items:
+            continue
+        entry = {"title": b["title"], "items": items}
+        if len(b["items"]) > TEASER_ITEMS:
+            entry["more"] = len(b["items"]) - TEASER_ITEMS
+        kept.append(entry)
+
+    out = {}
+    if alert:
+        out["alert"] = alert
+    if kept:
+        out["buckets"] = kept[:TEASER_BUCKETS]
+        if len(kept) > TEASER_BUCKETS:
+            out["more"] = len(kept) - TEASER_BUCKETS
+    return out
 
 
 def draft(changes, since: str | None) -> str:

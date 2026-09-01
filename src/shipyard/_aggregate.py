@@ -98,6 +98,24 @@ def roster(root: str | pathlib.Path | None = None) -> list[tuple[str, str]]:
     return [(n, url(n)) for n in names]
 
 
+def retired(root: str | pathlib.Path | None = None) -> list[tuple[str, str]]:
+    """Plugins the groups have retired, as ``(name, source_url)`` pairs.
+
+    A retired plugin is off the roster, so nothing about the marketplace it
+    publishes mentions it — but the aggregator's history still covers what it
+    shipped, and that is read from its checkout like any other. So the sync step
+    needs its URL, resolved through the same template the roster uses.
+    """
+    manifest = load_manifest(root)
+    names = [n for g in groups(root) for n in g["retired"]]
+    if not names:
+        return []
+    template = manifest["source"]
+    owner = manifest.get("owner")
+    subs = {"owner": owner} if owner else {}
+    return [(n, template.format(name=n, **subs)) for n in names]
+
+
 def workspace(root: str | pathlib.Path | None = None) -> pathlib.Path:
     return plugin_root(root).parent
 
@@ -128,6 +146,83 @@ def as_object(value: object) -> object:
     """plugin.yml writes author/owner as a plain string; the JSON manifests want
     an object. Anything already structured passes through."""
     return {"name": value} if isinstance(value, str) else value
+
+
+def groups(root: str | pathlib.Path | None = None) -> list[dict]:
+    """The catalog's functional-area groups, in declared order.
+
+    A group declares its identity and how it presents: ``key``, the ``accent``
+    CSS custom property its cards and chart bands take their color from, and the
+    ``tag`` the catalog labels it with. Membership is deliberately not here — a
+    plugin's own plugin.yml names the group it belongs to (``suite.group``), and
+    restating that beside the roster is the drift the split exists to prevent.
+
+    ``retired:`` is the exception, and only because its subjects have no spoke to
+    read: a plugin off the roster still shipped what it shipped, so it keeps the
+    group and the slot it held while it was on it.
+    """
+    declared = load_manifest(root).get("groups")
+    if not declared:
+        return []
+    if not isinstance(declared, list):
+        raise SystemExit(
+            f"shipyard: {MANIFEST} groups: must be a list of groups, "
+            f"got a {type(declared).__name__}")
+    out, seen = [], set()
+    for entry in declared:
+        if not isinstance(entry, dict) or not entry.get("key"):
+            raise SystemExit(
+                f"shipyard: {MANIFEST} groups: takes mappings with a key:, "
+                f"but got {entry!r}")
+        key = entry["key"]
+        if key in seen:
+            raise SystemExit(f"shipyard: {MANIFEST} declares the group {key} more than once")
+        seen.add(key)
+        retired = entry.get("retired") or []
+        if not isinstance(retired, list):
+            raise SystemExit(
+                f"shipyard: {MANIFEST} group {key} retired: must be a list of names, "
+                f"got a {type(retired).__name__}")
+        out.append({"key": key, "accent": entry.get("accent", ""),
+                    "tag": entry.get("tag", ""), "retired": list(retired)})
+    return out
+
+
+def grouped(root: str | pathlib.Path | None = None) -> list[tuple[str, str, int]]:
+    """``(plugin, group_key, shade)`` for every plugin the groups place, in
+    catalog order: each group's rostered plugins in roster order, then the
+    plugins it has retired.
+
+    ``shade`` is the plugin's index within its group, which is what lets two
+    cards in one group take distinguishable steps of the group's one accent
+    rather than needing a color each.
+
+    A rostered plugin whose ``suite.group`` names no declared group is an error.
+    That check has to live here: it is the one place that holds both the roster's
+    declarations and the groups', and a plugin missing from every group is a
+    plugin the catalog silently would not render.
+    """
+    declared = groups(root)
+    if not declared:
+        return []
+    keys = {g["key"] for g in declared}
+    members: dict[str, list[str]] = {g["key"]: [] for g in declared}
+    for name, spec in load_spokes(root).items():
+        key = (spec.get("suite") or {}).get("group")
+        if not key:
+            raise SystemExit(
+                f"shipyard: {name}/plugin.yml has no suite.group: — "
+                f"{MANIFEST} groups the catalog by it")
+        if key not in keys:
+            raise SystemExit(
+                f"shipyard: {name}/plugin.yml names the group {key!r}, which "
+                f"{MANIFEST} does not declare (has {', '.join(sorted(keys))})")
+        members[key].append(name)
+    placed = []
+    for g in declared:
+        for shade, name in enumerate(members[g["key"]] + g["retired"]):
+            placed.append((name, g["key"], shade))
+    return placed
 
 
 # ---- the artifact log --------------------------------------------------------
