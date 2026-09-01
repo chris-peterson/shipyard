@@ -10,6 +10,17 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Changed
+
+- **A skill's docs page is titled by the command that runs it.** `build-docs`
+  gives `docs/skills/<name>.md` an H1 of `` `/<plugin>:<name>` `` followed by the
+  same string in a fence, where docsify's copy button lands on it, and drops the
+  prose H1 the skill body opened with. A reader arriving at the page for a skill
+  wants the string to type; the prose name is already on the home page and in the
+  sidebar.
+
 ## 2.5.0
 
 ### Added

@@ -2,7 +2,8 @@
 
   docs: pre_render: -> the plugin's own generators, run first (if declared)
   assets/* -> docs/*                                (resource paths, copied first)
-  skills/<name>/SKILL.md -> docs/skills/<name>.md   (YAML frontmatter stripped)
+  skills/<name>/SKILL.md -> docs/skills/<name>.md   (frontmatter stripped, retitled
+                                                     `/<plugin>:<name>`)
   skills/<name>/references/*.md -> docs/skills/<name>/references/*.md
   rules|guides|templates|references/*.md -> docs/<dir>/*.md   (if present)
   SPEC.md -> docs/spec.md                           (copied verbatim, if present)
@@ -383,6 +384,18 @@ def _strip_frontmatter(text: str) -> str:
     return text  # no frontmatter fence -> pass through
 
 
+_LEADING_H1 = re.compile(r"\A#\s+.*\n+")
+
+
+def _skill_page(body: str, plugin: str, skill: str) -> str:
+    """A skill's page, titled by the command that runs it. The body's own H1 is
+    the skill's prose name, which the reader already has from the sidebar and the
+    home page; what they came for is the string to type, so it titles the page and
+    repeats in a fence, where docsify-copy-code puts a button on it."""
+    command = f"/{plugin}:{skill}"
+    return f"# `{command}`\n\n```text\n{command}\n```\n\n" + _LEADING_H1.sub("", body)
+
+
 def declared_pre_render(spec: dict) -> list[str]:
     """The commands from plugin.yml's `docs: pre_render:`, or `[]` when it names
     none. Same shape as `resources`, and the same reason: a fact about the
@@ -582,7 +595,8 @@ def run(root: str | pathlib.Path | None = None) -> int:
         rendered.append((source.relative_to(r).as_posix(), dest))
 
     for s in sorted((r / "skills").glob("*/SKILL.md")):
-        render(s, docs / "skills" / f"{s.parent.name}.md", _strip_frontmatter(s.read_text()))
+        page = _skill_page(_strip_frontmatter(s.read_text()), plugin["name"], s.parent.name)
+        render(s, docs / "skills" / f"{s.parent.name}.md", page)
         # A skill's own references travel with it. They sit a level deeper than the
         # root-level dirs below, and keeping that shape is what lets the skill's
         # `references/x.md` link resolve on the site as well as in the checkout.
