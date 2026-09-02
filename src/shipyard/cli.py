@@ -76,6 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("gen-marketplace-json", help="plugins.yml + plugins → .claude-plugin/marketplace.json")
     add("gen-plugins-js", help="plugins' suite: blocks → docs/plugins.js")
     add("gen-deps-json", help="plugins' declared dependencies → docs/deps.json")
+    add("gen-events-json", help="plugins' published and subscribed events → docs/events.json")
     add("gen-artifacts-json",
         help="the artifact log + the spokes' releases → docs/artifacts.json")
     add("generate", help="project source → artifacts")
@@ -91,10 +92,12 @@ def _generate_aggregate(root: str | None) -> int:
     The growth view is the one piece an aggregator opts into, by declaring the
     artifact log it keeps — a catalog with no such log has no history to plot."""
     from ._aggregate import load_manifest
-    from . import gen_artifacts_json, gen_deps_json, gen_marketplace_json, gen_plugins_js
+    from . import (gen_artifacts_json, gen_deps_json, gen_events_json,
+                   gen_marketplace_json, gen_plugins_js)
     gen_marketplace_json.run(root)
     gen_plugins_js.run(root)
     gen_deps_json.run(root)
+    gen_events_json.run(root)
     if load_manifest(root).get("artifacts"):
         gen_artifacts_json.run(root)
     return 0
@@ -144,6 +147,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "gen-deps-json":
         from . import gen_deps_json
         return gen_deps_json.run(root)
+    if args.command == "gen-events-json":
+        from . import gen_events_json
+        return gen_events_json.run(root)
     if args.command == "generate":
         from ._aggregate import is_aggregate
         if is_aggregate(root):

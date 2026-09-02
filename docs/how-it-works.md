@@ -143,6 +143,7 @@ flowchart LR
   log["artifacts log"] --> js["docs/plugins.js"]
   spokes --> js
   spokes --> deps["docs/deps.json"]
+  spokes --> events["docs/events.json"]
   sync --> tags["each CHANGELOG and tag"]
   log --> growth["docs/artifacts.json"]
   tags --> growth
@@ -150,6 +151,7 @@ flowchart LR
 
 - **`gen-marketplace-json`** — the roster plus each plugin's `plugin.yml` become the `marketplace.json` Claude Code reads at `marketplace add`. Generated and committed, the same split as `plugin.yml` → `plugin.json` one level up.
 - **`gen-plugins-js`** and **`gen-deps-json`** — the doc site's catalog data and dependency graph, projected from the plugins' `suite:` blocks. Render targets, regenerated on every docs build.
+- **`gen-events-json`** — the interop event catalog: each published key paired with the plugins subscribing to it, from both sides' `events:` blocks. The pairing is what shows a key with only one end — `subscribed_only` names a defect, `published_only` usually a rollout mid-flight.
 - **`gen-artifacts-json`** — the growth view: the artifact log bucketed into weeks, one entry per dated change point, and every release the plugins have tagged. An aggregator opts in by declaring the log; one without it has no history to plot.
 - **`roster`** — prints the declared plugins as `name<TAB>url` pairs. `--include-retired` adds the plugins the groups have retired, which the growth view still reads.
 
