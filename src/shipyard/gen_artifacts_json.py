@@ -29,7 +29,7 @@ import pathlib
 from datetime import date, timedelta
 
 from . import changelog, git
-from ._aggregate import CATS, grouped, load_manifest, workspace
+from ._aggregate import CATS, grouped, load_manifest, source_url, workspace
 from ._common import plugin_root
 
 
@@ -80,18 +80,30 @@ def build_series(rows: list[dict], plugins: list[str],
     return series
 
 
+def release_url(source: str, tag: str) -> str:
+    """The forge page for one release, from the plugin's repository URL.
+
+    Derived rather than fetched: the tag is what a release is published from, and
+    `source:` already resolves where the plugin lives, so the link needs no forge
+    call the rest of this projection has managed to do without.
+    """
+    return f"{source.removesuffix('.git')}/releases/tag/{tag}"
+
+
 def spoke_releases(name: str, root: str | pathlib.Path | None = None) -> list[dict]:
-    """One plugin's releases as ``{tag, published_at, summary}``, oldest first.
+    """One plugin's releases as ``{tag, published_at, url, summary}``, oldest first.
 
     A tag with no section in the spoke's CHANGELOG.md is reported as a release
     with no teaser rather than skipped or guessed at: the version shipped, and
     the listing says so, but nothing here invents notes for it.
     """
     spoke = workspace(root) / name
+    source = source_url(load_manifest(root))(name)
     out = []
     for tag, at in git.release_tags(spoke):
         body = changelog.released_body(tag.lstrip("v"), spoke)
         out.append({"tag": tag, "published_at": at,
+                    "url": release_url(source, tag),
                     "summary": changelog.teaser(body or "")})
     return out
 

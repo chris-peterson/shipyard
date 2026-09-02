@@ -185,6 +185,13 @@ class TestReleases:
         ninth = next(r for r in rels if r["tag"] == "v0.9.9")
         assert ninth["summary"] == {}
 
+    def test_a_release_links_the_page_its_tag_published(self, hub):
+        # the projection makes no forge call, so the link is resolved through
+        # the same source: template the roster is
+        rels = gen_artifacts_json.spoke_releases("guard", hub)
+        assert rels[1]["url"] == \
+            "https://github.com/chris-peterson/guard/releases/tag/v0.2.0"
+
     def test_a_retirement_claims_the_last_version_it_shipped(self, hub):
         rows = gen_artifacts_json.log_rows(hub)
         releases = {p: gen_artifacts_json.spoke_releases(p, hub)
@@ -192,6 +199,10 @@ class TestReleases:
         entries, claimed = gen_artifacts_json.build_changelog(rows, releases)
         retirement = next(e for e in entries if e.get("removed"))
         assert retirement["last_release"]["tag"] == "v0.1.0"
+        # the retirement line links it too — a retired plugin's repo is where
+        # the version anyone still has installed is published from
+        assert retirement["last_release"]["url"] == \
+            "https://github.com/chris-peterson/ledger/releases/tag/v0.1.0"
         # reported on the retirement line alone, so it opens no entry of its own
         listed = gen_artifacts_json.build_releases(["ledger"], releases, claimed)
         assert listed == []

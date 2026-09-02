@@ -10,6 +10,16 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Fixed
+
+- **A release in the growth view links the page its tag published.** Each
+  release in the projection carries a `url`, resolved through the roster's
+  `source:` template rather than fetched from the forge — the same link for a
+  retirement's last release. `gen-artifacts-json` emitted none, so a catalog
+  rendering one sent every release link to `<site>/undefined`.
+
 ## 2.6.0
 
 ### Added

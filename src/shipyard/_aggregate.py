@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import csv
 import pathlib
+from collections.abc import Callable
 
 from ._common import load_mapping, plugin_root
 
@@ -48,6 +49,33 @@ def load_manifest(root: str | pathlib.Path | None = None) -> dict:
     return load_mapping(path, "a mapping carrying the roster")
 
 
+def source_url(manifest: dict) -> Callable[[str], str]:
+    """A resolver from a plugin name to its repository URL, per ``source:``.
+
+    Takes any name rather than only a rostered one: the template is where the
+    aggregator says its plugins live, and a retired plugin still lives there.
+    """
+    template = manifest.get("source")
+    if not template:
+        raise SystemExit(
+            f"shipyard: {MANIFEST} has no source: — the roster needs a URL template "
+            "(e.g. https://github.com/{owner}/{name}.git) to be resolvable without "
+            "the plugin checkouts")
+    owner = manifest.get("owner")
+    substitutions = {"owner": owner} if owner else {}
+
+    def url(name: str) -> str:
+        try:
+            return template.format(name=name, **substitutions)
+        except KeyError as exc:
+            field = exc.args[0]
+            raise SystemExit(
+                f"shipyard: {MANIFEST} source: references {{{field}}}, "
+                f"but no {field}: is declared") from None
+
+    return url
+
+
 def roster(root: str | pathlib.Path | None = None) -> list[tuple[str, str]]:
     """The declared plugins as ``(name, source_url)`` pairs, in declared order.
 
@@ -60,12 +88,7 @@ def roster(root: str | pathlib.Path | None = None) -> list[tuple[str, str]]:
     symptom otherwise surfaces much later as a confusing error about a plugin
     nobody wrote down — or as a published catalog that is quietly wrong."""
     manifest = load_manifest(root)
-    template = manifest.get("source")
-    if not template:
-        raise SystemExit(
-            f"shipyard: {MANIFEST} has no source: — the roster needs a URL template "
-            "(e.g. https://github.com/{owner}/{name}.git) to be resolvable without "
-            "the plugin checkouts")
+    url = source_url(manifest)
     names = manifest.get("plugins")
     if not names:
         raise SystemExit(f"shipyard: {MANIFEST} declares no plugins:")
@@ -83,18 +106,6 @@ def roster(root: str | pathlib.Path | None = None) -> list[tuple[str, str]]:
         raise SystemExit(
             f"shipyard: {MANIFEST} lists {', '.join(repeated)} more than once")
 
-    owner = manifest.get("owner")
-    substitutions = {"owner": owner} if owner else {}
-
-    def url(name: str) -> str:
-        try:
-            return template.format(name=name, **substitutions)
-        except KeyError as exc:
-            field = exc.args[0]
-            raise SystemExit(
-                f"shipyard: {MANIFEST} source: references {{{field}}}, "
-                f"but no {field}: is declared") from None
-
     return [(n, url(n)) for n in names]
 
 
@@ -106,14 +117,11 @@ def retired(root: str | pathlib.Path | None = None) -> list[tuple[str, str]]:
     shipped, and that is read from its checkout like any other. So the sync step
     needs its URL, resolved through the same template the roster uses.
     """
-    manifest = load_manifest(root)
     names = [n for g in groups(root) for n in g["retired"]]
     if not names:
         return []
-    template = manifest["source"]
-    owner = manifest.get("owner")
-    subs = {"owner": owner} if owner else {}
-    return [(n, template.format(name=n, **subs)) for n in names]
+    url = source_url(load_manifest(root))
+    return [(n, url(n)) for n in names]
 
 
 def workspace(root: str | pathlib.Path | None = None) -> pathlib.Path:
