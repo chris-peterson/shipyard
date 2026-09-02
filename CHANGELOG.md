@@ -10,6 +10,28 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## 2.7.0
+
+### Added
+
+- **A plugin that declares interop events gets a generated `docs/events.md`.**
+  `build-docs` renders a section per event from `plugin.yml`'s
+  `events.publishes` — the fully-qualified key, when it fires, its fields, and
+  the hook snippet a subscriber registers — the same way it already renders the
+  hooks page. Each section carries an explicit anchor, so a subscriber can be
+  pointed at one event rather than the page.
+- **`gen-events-json` pairs the two halves of an event across the suite.** Each
+  plugin declares its own side (a producer in full, a consumer naming only the
+  key it depends on) and the catalog matches them into `docs/events.json`. It
+  runs under `generate` for any aggregator. Keys with one end are named
+  separately: `subscribed_only` is a defect, a typo or a publisher renamed out
+  from under it; `published_only` is usually a rollout mid-flight, since the two
+  ends ship from separate repos.
+- **A declared event field can say it may be empty.** A plain string stays
+  shorthand for a required string; the expanded form takes `describe`, `type`,
+  and `optional`. Without it the generated table asserted every field was always
+  set, which a consumer would only find out was untrue at runtime.
+
 ## 2.6.1
 
 ### Fixed
