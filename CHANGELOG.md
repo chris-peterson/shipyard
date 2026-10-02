@@ -10,6 +10,17 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Fixed
+
+- **A docs link marked `:ignore` is checked as a file, not a route.** docsify
+  hands `[Lab](lab/index.html ':ignore')` to the browser as written, so the link
+  works when `docs/lab/index.html` ships. `build-docs` looked it up as a page at
+  `lab/index.html.md` and failed the build; it now passes when the file is in
+  the published tree, fails naming the file when it isn't, and leaves the link
+  as written instead of rewriting it to a route.
+
 ## 2.7.0
 
 ### Added

@@ -77,6 +77,16 @@ def test_an_absolute_link_is_already_a_route():
     assert rewrite(text) == text
 
 
+def test_an_ignored_link_is_a_file_not_a_route():
+    """docsify hands an `:ignore` href to the browser as written, so a route in
+    its place would point the reader somewhere else."""
+    text = "see [sync](../spec-sync/SKILL.md ':ignore')"
+
+    assert rewrite(text) == text
+    assert links.local_links(text) == []
+    assert links.ignored_links(text) == ["../spec-sync/SKILL.md"]
+
+
 @pytest.mark.parametrize("heading, slug", [
     ("`LOCATE-01`", "locate-01"),
     ("LOCATE-01", "locate-01"),

@@ -614,14 +614,14 @@ def _local_refs(text: str) -> list[str]:
     resolves somewhere this build can't see, so none of those are ours to check."""
     refs = []
     prose = "\n".join(links.mask_code_spans(line) for _, line in links.prose_lines(text))
-    for pattern in _REF_PATTERNS:
-        for ref in pattern.findall(prose):
-            ref = ref.split("#")[0].split("?")[0].strip().strip("<>")
-            # The reference is a URL; the thing on disk is a path. `my%20hero.png`
-            # and `my hero.png` are the same file, and only the decoded form exists.
-            ref = urllib.parse.unquote(ref)
-            if ref and not ref.startswith("/") and not links.SCHEME.match(ref):
-                refs.append(ref)
+    found = [ref for pattern in _REF_PATTERNS for ref in pattern.findall(prose)]
+    for ref in found + links.ignored_links(text):
+        ref = ref.split("#")[0].split("?")[0].strip().strip("<>")
+        # The reference is a URL; the thing on disk is a path. `my%20hero.png`
+        # and `my hero.png` are the same file, and only the decoded form exists.
+        ref = urllib.parse.unquote(ref)
+        if ref and not ref.startswith("/") and not links.SCHEME.match(ref):
+            refs.append(ref)
     return refs
 
 

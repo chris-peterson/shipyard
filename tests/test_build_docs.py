@@ -524,6 +524,33 @@ def test_a_hand_written_page_pointing_at_a_missing_route_fails_too(plugin):
         build_docs.run(root)
 
 
+def test_an_ignored_link_to_a_file_the_tree_carries_builds(plugin):
+    """cleat's sidebar links a standalone page with `:ignore`; the route check
+    looked for `lab/index.html.md` and failed a site that shipped the page."""
+    root, write = plugin
+    write("docs/lab/index.html", "<!doctype html>")
+    write("docs/README.md", "# demo")
+    write("docs/_sidebar.md", "- [Lab](lab/index.html ':ignore')\n")
+
+    assert build_docs.run(root) == 0
+
+
+def test_an_ignored_link_to_a_missing_file_fails_the_build(plugin):
+    root, write = plugin
+    write("docs/README.md", "Try the [lab](lab/index.html ':ignore').")
+
+    with pytest.raises(SystemExit, match=r"README\.md -> lab/index\.html"):
+        build_docs.run(root)
+
+
+def test_ignore_is_found_among_other_link_options(plugin):
+    root, write = plugin
+    write("docs/lab.html", "<!doctype html>")
+    write("docs/README.md", "Try the [lab](lab.html \":ignore :target=_self\").")
+
+    assert build_docs.run(root) == 0
+
+
 def test_a_link_to_an_anchor_the_target_page_lacks_fails_the_build(plugin):
     root, write = plugin
     write("SPEC.md", "# spec\n\n#### `LOCATE-01`\nThe system shall.\n")

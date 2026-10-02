@@ -34,9 +34,13 @@ FENCES = ("```", "~~~")
 
 # An inline link, minus images: `![alt](shot.png)` names a file that has to exist
 # in the artifact, while `[text](page.md)` names a route. They fail differently,
-# so they're found separately.
-LINK = re.compile(r"(?<!!)\[[^\]]*\]\(\s*([^)\s]+)")
+# so they're found separately. Group 3 is the title, where docsify reads its
+# link options.
+LINK = re.compile(r"""(?<!!)\[[^\]]*\]\(\s*([^)\s]+)(?:\s+(["'])(.*?)\2)?""")
 SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+# docsify's `:ignore` option: the href reaches the browser as written instead of
+# being compiled into a route, so it names a file under the docs root.
+_IGNORE_OPTION = re.compile(r"(?:^|\s):ignore(?:\s|$)")
 
 # What docsify strips from a heading before slugging it. Everything absent from
 # this set survives — the hyphen and the underscore included, which is why
@@ -76,17 +80,28 @@ def prose_lines(text: str):
             fence = None
 
 
-def local_links(text: str) -> list[str]:
-    """Every link in a page that has to resolve inside the published tree. A
-    scheme, a protocol-relative host, or a bare fragment resolves somewhere this
-    build can't see."""
+def _links(text: str) -> list[tuple[str, bool]]:
+    """(href, ignored) for every link in a page that has to resolve inside the
+    published tree. A scheme, a protocol-relative host, or a bare fragment
+    resolves somewhere this build can't see."""
     out = []
     for _, line in prose_lines(text):
-        for href in LINK.findall(mask_code_spans(line)):
-            href = href.strip().strip("<>")
+        for match in LINK.finditer(mask_code_spans(line)):
+            href = match.group(1).strip().strip("<>")
             if href and not href.startswith(("#", "//")) and not SCHEME.match(href):
-                out.append(href)
+                out.append((href, bool(_IGNORE_OPTION.search(match.group(3) or ""))))
     return out
+
+
+def local_links(text: str) -> list[str]:
+    """Every link in a page that names a docsify route."""
+    return [href for href, ignored in _links(text) if not ignored]
+
+
+def ignored_links(text: str) -> list[str]:
+    """Every `:ignore` link in a page: a file the published tree has to carry,
+    not a route."""
+    return [href for href, ignored in _links(text) if ignored]
 
 
 def slugify(heading_text: str) -> str:
@@ -218,6 +233,8 @@ def rewrite(text: str, source: str, routes: dict[str, str]) -> str:
     for i, line in prose_lines(text):
         replacements = []
         for match in LINK.finditer(mask_code_spans(line)):
+            if _IGNORE_OPTION.search(match.group(3) or ""):
+                continue
             path, fragment = split_fragment(match.group(1))
             route = routes.get(resolve_source(source, path))
             if route is not None:
