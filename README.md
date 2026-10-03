@@ -84,8 +84,8 @@ workflows are:
 uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard generate
 ```
 
-Then `git diff` to see it and `git restore .` to throw it away; CI stays the only
-writer. [What this does and doesn't
+Then `git diff` to see it. The files match what CI would commit, so keeping them
+is harmless. [What this does and doesn't
 reproduce](https://chris-peterson.github.io/shipyard/#/how-it-works?id=debugging-a-red-projection-job).
 
 Only `docs/` is published, so art a page references from elsewhere in the repo
