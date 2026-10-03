@@ -11,11 +11,11 @@ import pathlib
 from . import _validate
 from ._common import load_plugin, plugin_root
 
-# plugin.json carries only the packaging fields Claude Code reads, in this
-# order. The rest of plugin.yml (marketplace:, suite:) projects into other
-# targets, not here, and a field the runtime doesn't recognize is left out —
-# `claude plugin validate` reports one as an unknown field, which is a warning
-# every consumer would then have to accept for a value nothing reads back.
+# plugin.json carries only the packaging fields Claude Code reads and the
+# listing URLs `claude plugin validate` recognizes, in this order. The rest of
+# plugin.yml (marketplace:, suite:, icon:) projects into other targets or
+# nowhere: a field the validator doesn't recognize is a warning every consumer
+# would have to accept, and one nothing reads back is a value that does nothing.
 PACKAGING_FIELDS = (
     "name",
     "version",
@@ -25,6 +25,10 @@ PACKAGING_FIELDS = (
     "license",
     "keywords",
     "homepage",
+    "documentationUrl",
+    "supportUrl",
+    "privacyPolicyUrl",
+    "termsOfServiceUrl",
     "dependencies",
 )
 
@@ -37,6 +41,8 @@ def build(root: str | pathlib.Path | None = None) -> str:
         _validate.raise_if(
             _validate.dependency_errors(spec["dependencies"], spec.get("name", "")),
             "plugin.yml declares dependencies Claude Code cannot resolve:")
+    _validate.raise_if(_validate.listing_url_errors(spec),
+                       "plugin.yml declares listing URLs that are not URLs:")
     out = {}
     for field in PACKAGING_FIELDS:
         value = spec.get(field)
@@ -44,6 +50,9 @@ def build(root: str | pathlib.Path | None = None) -> str:
         # Code reads it from plugin.json, so project it here too.
         if field == "homepage" and value is None:
             value = (spec.get("marketplace") or {}).get("homepage")
+        # Across the suite a plugin's homepage is its docs site.
+        if field == "documentationUrl" and value is None:
+            value = out.get("homepage")
         if value is None:
             continue
         # author is a plain string in plugin.yml; plugin.json wants an object.

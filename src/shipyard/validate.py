@@ -17,7 +17,7 @@ unless the plugin's manifest accepts it by name:
         - warning: root
           because: >-
             CLAUDE.md at the root is this repo's own agent instructions, not
-            shipped context. It is the only file Claude Code auto-loads.
+            shipped context. Claude Code auto-loads it.
 
 `--strict` alone can't express that, and dropping to the default exit code lets
 every warning through forever. Accepting one names it in the source of record,

@@ -12,7 +12,7 @@ The distinction is about who owns which fact. A plugin owns everything about its
 
 Each generator reads a plugin's canonical source and writes a committed artifact.
 
-- **`gen-plugin-json`** — projects the packaging fields of `plugin.yml` into `.claude-plugin/plugin.json` (the file Claude Code reads at install), including `homepage` from the `marketplace:` block.
+- **`gen-plugin-json`** — projects the packaging fields of `plugin.yml` into `.claude-plugin/plugin.json` (the file Claude Code reads at install), including `homepage` from the `marketplace:` block and the listing URLs (`documentationUrl`, which defaults to `homepage`, `supportUrl`, `privacyPolicyUrl`, `termsOfServiceUrl`).
 - **`gen-describe`** — the interesting one. It derives a one-line description for every artifact from the artifact's *own* source, and syncs them into `plugin.yml` between generated markers:
 
   | Artifact | Description comes from |
@@ -229,8 +229,7 @@ validate:
     - warning: root
       because: >-
         CLAUDE.md at the root is this repo's own agent instructions, not shipped
-        context. It is the only file Claude Code auto-loads, so the shim earns
-        the warning.
+        context. Claude Code only auto-loads it from the root, so it stays.
     - warning: name
       path: .claude-plugin/plugin.json
       because: renaming would break every installed copy.
@@ -255,29 +254,31 @@ Nothing *writes* an artifact from a laptop. Reading what CI would have written i
 ```bash
 uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard generate
 git diff             # what CI would have pushed
-git restore .        # discard it; CI is still the only writer
 ```
 
-`git restore` reverts the committed artifacts, which is all of them in a converted
-repo. The exception is the first run after a *new* projection lands: that artifact
-arrives untracked, so `git status` is what tells you it's there.
+The regenerated files are what CI would commit from the same source, so keeping
+them is harmless: the projection job finds nothing left to change. The first run
+after a *new* projection lands writes an untracked file, so `git status` is what
+tells you it's there.
 
-Every plugin in the suite wraps that read in one recipe, and it is named `check` in
-all of them:
+Every plugin in the suite wraps that read in one recipe, and it is named
+`check-generated` in all of them:
 
 ```just
 shipyard := "uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard"
 
-# read what the projection job would commit, without keeping it; `git restore .` discards
-check:
+# regenerate the artifacts and list what the projection job would commit
+check-generated:
     {{shipyard}} generate
     git --no-pager diff --stat
 ```
 
-A plugin that declares a `cli:` block writes `check: build` instead, because
-`gen-cli-manifest` interrogates the built CLI and there is nothing to interrogate
-until the build has run. One name across the suite is the point: `check` is the
-recipe to reach for in a repo you haven't opened before.
+A plugin that declares a `cli:` block writes `check-generated: build` instead,
+because `gen-cli-manifest` interrogates the built CLI and there is nothing to
+interrogate until the build has run. The name says the recipe writes generated
+files, which a bare `check` would hide from anyone expecting a read-only check.
+One name across the suite means it's the recipe to reach for in a repo you
+haven't opened before.
 
 Pin the same ref your workflows pin. Debugging a `@v2` job against `v1`'s generators reproduces the wrong shape, which is worse than not reproducing it at all.
 

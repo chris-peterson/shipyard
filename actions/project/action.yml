@@ -55,7 +55,7 @@ runs:
     # release that adds a check would otherwise turn the whole suite red on the
     # next unrelated push. Moving the pin is the deliberate sweep, same as any
     # other change to what plugins call.
-    - run: npm install -g @anthropic-ai/claude-code@2.1.246
+    - run: npm install -g @anthropic-ai/claude-code@2.1.281
       shell: bash
 
     # Before the commit, so a source that projects into an invalid plugin never

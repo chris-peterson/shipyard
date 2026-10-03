@@ -19,8 +19,11 @@ https://code.claude.com/docs/en/plugin-dependencies
 from __future__ import annotations
 
 import re
+import urllib.parse
 
 RELEVANCE_FIELDS = ("topic", "signals")
+LISTING_URL_FIELDS = ("documentationUrl", "supportUrl", "privacyPolicyUrl",
+                      "termsOfServiceUrl")
 TOPIC_MAX = 64
 
 # Per-signal caps: (max entries, max length of one entry). manifestDeps counts
@@ -245,6 +248,20 @@ def dependency_errors(dependencies, plugin: str, allowed: set[str] | None = None
         errors.append(f"{where} lists {plugin} itself")
     for name in sorted({n for n in names if names.count(n) > 1}):
         errors.append(f"{where} lists {name} more than once")
+    return errors
+
+
+def listing_url_errors(spec: dict) -> list[str]:
+    """Violations in the listing URLs, which `claude plugin validate` passes
+    unchecked even where it rejects a malformed `homepage`."""
+    errors = []
+    for field in LISTING_URL_FIELDS:
+        if field not in spec:
+            continue
+        value = spec[field]
+        parsed = urllib.parse.urlparse(value) if isinstance(value, str) else None
+        if not parsed or parsed.scheme not in ("http", "https") or not parsed.netloc:
+            errors.append(f"/{field} must be an http(s) URL, but it is {value!r}")
     return errors
 
 

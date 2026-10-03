@@ -283,10 +283,46 @@ validate:
 # ---- what the projection puts in front of the validator ---------------------
 
 def test_a_field_the_runtime_does_not_read_stays_out_of_plugin_json(tmp_path):
-    """`icon:` reaches the validator as an unknown field. Projecting it would
-    make every plugin accept a warning for a value nothing reads back."""
+    """`icon:` in plugin.yml feeds nothing in plugin.json that Claude Code is
+    known to read, so projecting it would ship a value that does nothing."""
     plugin = _plugin(tmp_path, "name: demo\nversion: 1.0.0\nicon: docs/favicon.svg\n")
     assert "icon" not in json.loads(gen_plugin_json.build(plugin))
+
+
+def test_listing_urls_reach_plugin_json(tmp_path):
+    """The validator recognizes these listing keys, so a plugin.yml that
+    declares one ships it rather than losing it silently."""
+    urls = {
+        "documentationUrl": "https://example.com/docs",
+        "supportUrl": "https://example.com/support",
+        "privacyPolicyUrl": "https://example.com/privacy",
+        "termsOfServiceUrl": "https://example.com/terms",
+    }
+    body = "name: demo\nversion: 1.0.0\n" + "".join(f"{k}: {v}\n" for k, v in urls.items())
+    projected = json.loads(gen_plugin_json.build(_plugin(tmp_path, body)))
+    assert {k: projected.get(k) for k in urls} == urls
+
+
+def test_documentation_url_defaults_to_the_homepage(tmp_path):
+    body = ("name: demo\nversion: 1.0.0\n"
+            "marketplace:\n  homepage: https://example.com/demo/#/\n")
+    projected = json.loads(gen_plugin_json.build(_plugin(tmp_path, body)))
+    assert projected["documentationUrl"] == "https://example.com/demo/#/"
+
+
+def test_a_declared_documentation_url_wins_over_the_homepage(tmp_path):
+    body = ("name: demo\nversion: 1.0.0\ndocumentationUrl: https://example.com/docs\n"
+            "marketplace:\n  homepage: https://example.com/demo/#/\n")
+    projected = json.loads(gen_plugin_json.build(_plugin(tmp_path, body)))
+    assert projected["documentationUrl"] == "https://example.com/docs"
+
+
+@pytest.mark.parametrize("value", [42, "docs/support", "ftp://example.com/x"])
+def test_a_listing_url_that_is_not_a_url_is_rejected(tmp_path, value):
+    """The validator passes these unchecked, so the projection is the gate."""
+    plugin = _plugin(tmp_path, f"name: demo\nversion: 1.0.0\nsupportUrl: {value}\n")
+    with pytest.raises(SystemExit, match="supportUrl must be an http"):
+        gen_plugin_json.build(plugin)
 
 
 # ---- the validator's absence -----------------------------------------------

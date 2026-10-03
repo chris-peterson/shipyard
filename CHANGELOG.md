@@ -12,6 +12,21 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
 
 ## Unreleased
 
+### Added
+
+- **plugin.json carries the listing URLs.** `documentationUrl`, `supportUrl`,
+  `privacyPolicyUrl`, and `termsOfServiceUrl` at the top of `plugin.yml` project
+  into `plugin.json`. Each must be an http(s) URL; the projection fails naming
+  the field otherwise, since `claude plugin validate` passes them unchecked.
+  `documentationUrl` defaults to `homepage`, so a plugin whose homepage is its
+  docs site ships the link without declaring it.
+
+### Changed
+
+- **`actions/project` validates with Claude Code 2.1.281** (from 2.1.246). Its
+  ruleset decides which warnings a plugin's `validate: accept:` has to name, so
+  an acceptance for a warning it no longer reports now fails as stale.
+
 ### Fixed
 
 - **A docs link marked `:ignore` is checked as a file, not a route.** docsify
