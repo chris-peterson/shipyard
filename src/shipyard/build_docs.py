@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import html
 import pathlib
+import posixpath
 import re
 import shlex
 import shutil
@@ -109,11 +110,13 @@ DEFAULT_RESOURCES = ("assets",)
 
 # A file reference: an `<img src>` or a markdown image names a file that has to
 # exist in the artifact. A `[text](page.md)` link names a docsify route instead,
-# and is checked separately against the model in `links.py`.
-_REF_PATTERNS = (
-    re.compile(r'\ssrc\s*=\s*["\']([^"\']+)["\']'),
-    re.compile(r'!\[[^\]]*\]\(\s*([^)\s]+)'),
-)
+# and is checked separately against the model in `links.py`. The two resolve
+# differently on a nested page: the browser resolves a raw `src` against
+# index.html's URL, while docsify compiles a markdown image against the page's
+# own directory (`getParentPath(router.getCurrentPath())`), whatever
+# `relativePath` says.
+_RAW_SRC = re.compile(r'\ssrc\s*=\s*["\']([^"\']+)["\']')
+_MARKDOWN_IMAGE = re.compile(r'!\[[^\]]*\]\(\s*([^)\s]+)')
 
 
 def _render_index_html(spec: dict) -> str:
@@ -608,20 +611,23 @@ def _publish_resources(r: pathlib.Path, docs: pathlib.Path,
             shutil.copyfile(src, docs / src.name)
 
 
-def _local_refs(text: str) -> list[str]:
-    """The file references in a page that have to resolve inside the artifact.
-    A scheme (https:, data:, mailto:), a root-relative path, or a bare fragment
-    resolves somewhere this build can't see, so none of those are ours to check."""
+def _local_refs(text: str) -> list[tuple[str, bool]]:
+    """(ref, page_relative) for each file reference in a page that has to resolve
+    inside the artifact. Only a markdown image is page-relative. A scheme
+    (https:, data:, mailto:), a root-relative path, or a bare fragment resolves
+    somewhere this build can't see, so none of those are ours to check."""
     refs = []
     prose = "\n".join(links.mask_code_spans(line) for _, line in links.prose_lines(text))
-    found = [ref for pattern in _REF_PATTERNS for ref in pattern.findall(prose)]
-    for ref in found + links.ignored_links(text):
+    found = ([(ref, False) for ref in _RAW_SRC.findall(prose)]
+             + [(ref, True) for ref in _MARKDOWN_IMAGE.findall(prose)]
+             + [(ref, False) for ref in links.ignored_links(text)])
+    for ref, page_relative in found:
         ref = ref.split("#")[0].split("?")[0].strip().strip("<>")
         # The reference is a URL; the thing on disk is a path. `my%20hero.png`
         # and `my hero.png` are the same file, and only the decoded form exists.
         ref = urllib.parse.unquote(ref)
         if ref and not ref.startswith("/") and not links.SCHEME.match(ref):
-            refs.append(ref)
+            refs.append((ref, page_relative))
     return refs
 
 
@@ -630,14 +636,16 @@ def _check_refs(docs: pathlib.Path) -> None:
     carry. Runs last, over the tree as it will be uploaded, because a reference
     is only broken relative to what actually ships.
 
-    Every reference resolves against the docs root, not the page's own directory,
-    however deep the page sits. Both halves of the site agree on that: the shared
-    docsify bootstrap sets `relativePath: false`, and a raw <img src> is resolved
-    by the browser against index.html's URL, since the route lives in the hash."""
+    A raw <img src> and an `:ignore` link resolve against the docs root however
+    deep the page sits: the browser resolves them against index.html's URL,
+    since the route lives in the hash. A markdown image resolves against the
+    page's own directory, because docsify compiles it that way."""
     broken = []
     for page in sorted(docs.rglob("*.md")) + sorted(docs.rglob("*.html")):
-        for ref in _local_refs(page.read_text(errors="replace")):
-            if not links.exists_exact(docs, ref):
+        base = page.parent.relative_to(docs).as_posix()
+        for ref, page_relative in _local_refs(page.read_text(errors="replace")):
+            target = posixpath.normpath(posixpath.join(base, ref) if page_relative else ref)
+            if target.split("/")[0] == ".." or not links.exists_exact(docs, target):
                 broken.append(f"  {page.relative_to(docs.parent).as_posix()} -> {ref}")
     if broken:
         raise SystemExit(

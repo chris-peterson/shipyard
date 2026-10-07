@@ -108,14 +108,45 @@ def test_a_nested_page_resolves_against_the_docs_root(plugin):
 
 
 def test_a_file_beside_a_nested_page_does_not_satisfy_its_reference(plugin):
-    """The inverse, and the reason page-relative resolution can't be the model:
-    this renders a blank image live, so a check that passed it would be waving
-    through the exact failure it exists to catch."""
+    """The inverse, and the reason page-relative resolution can't be the model
+    for a raw <img src>: this renders a blank image live, so a check that passed
+    it would be waving through the exact failure it exists to catch."""
     root, write = plugin
     write("docs/skills/shot.png", "png")
     write("docs/skills/thing.md", '<img src="shot.png">')
 
     with pytest.raises(SystemExit, match=r"shot\.png"):
+        build_docs.run(root)
+
+
+def test_a_markdown_image_on_a_nested_page_resolves_against_that_page(plugin):
+    """docsify compiles a markdown image against the page's own directory, so a
+    nested page reaches a shared image with `../`. Checked against the docs root,
+    that working image failed the build."""
+    root, write = plugin
+    write("docs/images/tabs.png", "png")
+    write("docs/iterm/layout.md", "![tabs](../images/tabs.png)")
+
+    assert build_docs.run(root) == 0
+
+
+def test_a_markdown_image_on_a_nested_page_is_not_found_from_the_docs_root(plugin):
+    """The same image written root-relative renders blank live: docsify requests
+    docs/iterm/images/tabs.png."""
+    root, write = plugin
+    write("docs/images/tabs.png", "png")
+    write("docs/iterm/layout.md", "![tabs](images/tabs.png)")
+
+    with pytest.raises(SystemExit, match=r"images/tabs\.png"):
+        build_docs.run(root)
+
+
+def test_a_markdown_image_that_climbs_out_of_the_docs_tree_fails(plugin):
+    root, write = plugin
+    write("hero.png", "png")
+    write("docs/README.md", "![hero](../hero.png)")
+
+    with pytest.raises(SystemExit, match=r"\.\./hero\.png"):
         build_docs.run(root)
 
 
