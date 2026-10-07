@@ -10,6 +10,17 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## 2.8.1
+
+### Fixed
+
+- **A markdown image on a nested docs page is checked where docsify loads
+  it.** docsify resolves `![](…)` against the page's own directory, so
+  `docs/guide/page.md` reaches a shared image as `../images/x.png`. The
+  build failed that working image and passed the `images/x.png` that 404s;
+  it now checks the path the page actually requests. A raw `<img src>` still
+  resolves from the docs root.
+
 ## 2.8.0
 
 ### Added
