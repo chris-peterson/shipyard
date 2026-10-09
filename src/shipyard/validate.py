@@ -27,6 +27,11 @@ new is what a gate is for.
 An acceptance that no longer matches anything is an error as well. The reason it
 records has outlived the warning it explains, and the next reader would take it
 for a live exception.
+
+**Advice** never fails. The validator prints it in a block of its own that it
+says does not change the verdict, and its exit code agrees, even under
+`--strict`. The report printed above the verdict carries it, and the pass line
+counts it so it isn't lost in the log.
 """
 from __future__ import annotations
 
@@ -42,13 +47,20 @@ TOOL = "claude"
 ARGS = ("plugin", "validate")
 
 # The validator's report, line by line. `Validating <what>: <path>` opens a
-# section; a `Found N errors:`/`Found N warnings:` header opens a block within
-# it; `❯ <field>: <message>` is one finding in that block.
+# section; a `Found N errors:`/`Found N warnings:`/`Advice (...):` header opens
+# a block within it; `❯ <field>: <message>` is one finding in that block.
 SECTION = "Validating "
 ERROR_MARK = "✘"    # ✘
 WARN_MARK = "⚠"     # ⚠
+ADVICE_MARK = "ℹ"   # ℹ
 PASS_MARK = "✔"     # ✔
 FINDING = "❯"       # ❯
+
+# Advice never changes the validator's exit code, even under `--strict`, so it
+# never gates here either. A finding under a header this grammar doesn't name is
+# UNREAD and fails the gate: whether it should gate depends on a kind only the
+# validator knows, and borrowing the previous block's would be a guess.
+ERROR, WARNING, ADVICE, UNREAD = "error", "warning", "advice", "unread"
 
 # Every report ends in one of these. Requiring it is what separates "the
 # validator looked and found nothing" from "something else ran": a first-run
@@ -61,11 +73,13 @@ REQUIRED = ("warning", "because")
 
 
 class Finding:
-    def __init__(self, kind: str, field: str, message: str, source: str):
+    def __init__(self, kind: str, field: str, message: str, source: str,
+                 header: str = ""):
         self.kind = kind
         self.field = field
         self.message = message
         self.source = source
+        self.header = header
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostics only
         return f"Finding({self.kind}, {self.field}, {self.source})"
@@ -74,40 +88,50 @@ class Finding:
 def parse(output: str) -> list[Finding]:
     """The findings in one validator report.
 
-    Nothing here guesses. A line that doesn't fit the grammar above is left
-    alone, and `run` decides what an unrecognized report means — inferring a
-    finding shipyard didn't actually read would make the gate report a verdict
-    the validator never gave.
+    Nothing here guesses. A finding outside a block the grammar above names is
+    UNREAD, and `run` decides what an unrecognized report means. Inferring a
+    finding's kind from wherever it happened to land would make the gate report
+    a verdict the validator never gave.
     """
     findings: list[Finding] = []
     source = ""
-    kind = ""
+    header = ""
+    kind = UNREAD
     for raw in output.splitlines():
         line = raw.strip()
         if not line:
             continue
         if line.startswith(SECTION):
             source = line.split(":", 1)[1].strip() if ":" in line else ""
-            kind = ""
-            continue
-        if line.startswith(ERROR_MARK) or line.startswith(WARN_MARK):
-            # `✘ Validation failed` is the trailer, not a block header.
-            kind = ("error" if line.startswith(ERROR_MARK) else "warning") \
-                if " Found " in line else ""
+            header, kind = "", UNREAD
             continue
         if line.startswith(FINDING):
             body = line[len(FINDING):].strip()
             field, _, message = body.partition(":")
-            findings.append(Finding(kind or "error", field.strip(),
-                                    message.strip(), source))
+            findings.append(Finding(kind, field.strip(), message.strip(),
+                                    source, header))
             continue
-        if line.startswith(PASS_MARK):
-            kind = ""
+        # A finding long enough to wrap continues on the next line, and so does
+        # the line advice prints for pasting.
+        if raw.startswith(" "):
+            if findings:
+                findings[-1].message = f"{findings[-1].message} {line}"
             continue
-        # A finding long enough to wrap continues on the next line.
-        if findings and raw.startswith(" "):
-            findings[-1].message = f"{findings[-1].message} {line}"
+        header, kind = line, _block_kind(line)
     return findings
+
+
+def _block_kind(header: str) -> str:
+    if header.startswith(ERROR_MARK) and " Found " in header:
+        return ERROR
+    if header.startswith(WARN_MARK) and " Found " in header:
+        return WARNING
+    if header.startswith(ADVICE_MARK) \
+            and header[len(ADVICE_MARK):].lstrip().startswith("Advice"):
+        return ADVICE
+    # `✘ Validation failed` shares its mark with an error header; it ends the
+    # report rather than opening a block.
+    return UNREAD
 
 
 def report(root: pathlib.Path) -> tuple[str, int]:
@@ -198,15 +222,24 @@ def run(root: str | pathlib.Path | None = None) -> int:
             f"a verdict, so nothing was validated. The output is above.")
 
     findings = parse(output)
-    if code != 0 and not any(f.kind == "error" for f in findings):
+    if code != 0 and not any(f.kind == ERROR for f in findings):
         raise SystemExit(
             f"shipyard: {TOOL} {' '.join(ARGS)} exited {code}, and its report "
             f"names no error shipyard could read. The report is above.")
 
     problems = [f"{f.source}: {f.field}: {f.message}"
-                for f in findings if f.kind == "error"]
+                for f in findings if f.kind == ERROR]
     for finding in findings:
-        if finding.kind != "warning":
+        if finding.kind != UNREAD:
+            continue
+        where = (f"under {finding.header!r}" if finding.header
+                 else "outside any block")
+        problems.append(
+            f"{finding.source}: {finding.field}: {finding.message}\n"
+            f"    This finding is {where}, which is not an error, warning, or "
+            f"advice block, so shipyard cannot tell whether it gates.")
+    for finding in findings:
+        if finding.kind != WARNING:
             continue
         if not any(_matches(rule, finding) for rule in accept):
             problems.append(
@@ -214,13 +247,20 @@ def run(root: str | pathlib.Path | None = None) -> int:
                 f"    Fix it, or accept it in {source} under "
                 f"`validate: accept:` with the reason.")
     for rule in accept:
-        if not any(_matches(rule, f) for f in findings if f.kind == "warning"):
+        if not any(_matches(rule, f) for f in findings if f.kind == WARNING):
             problems.append(
                 f"{source} accepts the warning {rule['warning']!r}, which the "
                 f"validator no longer reports. Drop the acceptance.")
 
     _validate.raise_if(problems, f"{target} does not pass plugin validation:")
+    notes = []
+    if accept:
+        notes.append(f"{len(accept)} accepted warning"
+                     f"{'' if len(accept) == 1 else 's'}")
+    advice = sum(1 for f in findings if f.kind == ADVICE)
+    if advice:
+        notes.append(f"{advice} piece{'' if advice == 1 else 's'} of advice "
+                     f"above, which never gates")
     print(f"shipyard: {target.name} passes plugin validation"
-          + (f" ({len(accept)} accepted warning"
-             f"{'' if len(accept) == 1 else 's'})." if accept else "."))
+          + (f" ({'; '.join(notes)})." if notes else "."))
     return 0

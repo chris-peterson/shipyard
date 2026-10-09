@@ -24,6 +24,18 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
   Hooks are declared in `hooks/hooks.yml` — the source of record, a flat, commentable list of `{event, matcher?, command, description}` — which **`gen-hooks-json`** projects into the `hooks/hooks.json` Claude Code reads (the same source → generated split as `plugin.yml` → `plugin.json`). `gen-describe` reads each hook's `description:` straight from `hooks.yml`, so the hook scripts carry no `# DOCUMENTATION:` line.
 
+  An entry can also carry Claude Code's per-hook fields for a [command hook](https://code.claude.com/docs/en/hooks), which reach `hooks.json` as written: `args`, `async`, `asyncRewake`, `if`, `onFailure`, `shell`, `statusMessage`, and `timeout`. `claude plugin validate` checks their values. Any other key fails the projection, naming the entry and the field, so a misspelled `timout:` is reported instead of dropped.
+
+  ```yaml
+  hooks:
+    - event: PreToolUse
+      matcher: Bash
+      command: python3 "${CLAUDE_PLUGIN_ROOT}/scripts/guard.py"
+      timeout: 10
+      onFailure: block
+      description: Screens the command before it runs.
+  ```
+
 - **`gen-cli-manifest`** — for a plugin whose primary surface is a CLI. Its command and flag grammar is a public contract callers script against, and nothing recorded it: a renamed flag reached users as an unexplained behavior change, with no diff anywhere that named it. This generator runs the CLI, parses its help output, and writes a structured manifest the repo commits.
 
   It's the only generator whose source of record is a running program rather than a file, so the repo declares how to reach it:
@@ -240,6 +252,10 @@ validate:
 An acceptance that matches nothing in the report is an error too. The reason it records has outlived the warning it explains, and the next reader would take it for a live exception.
 
 An **error** is never acceptable. An unknown field is a judgment call; a wrong-typed one is a broken plugin.
+
+**Advice** never gates. The validator prints it under `ℹ Advice (does not change the verdict):` and leaves its exit code alone, even with `--strict`; the README install line it suggests is one example. shipyard does the same: the advice stays in the printed report, and the pass line counts it. Advice can't be accepted, since there is nothing to excuse.
+
+A finding under any other block header fails the gate, naming the header. Whether a finding gates depends on its block, and a block shipyard doesn't recognize is one it can't classify without guessing.
 
 Run the same check yourself the same way you'd run any other:
 

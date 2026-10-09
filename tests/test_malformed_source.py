@@ -113,3 +113,41 @@ def test_every_hooks_yml_reader_rejects_the_same_shape(tmp_path):
                  lambda: gen_hooks_json.build(root)):
         with pytest.raises(SystemExit, match="a mapping with a `hooks:` list"):
             call()
+
+
+# ---- a hook entry's own fields ---------------------------------------------
+
+def test_a_misspelled_hook_field_is_refused_rather_than_dropped(tmp_path):
+    """Dropped, `timout: 10` would leave the hook on Claude Code's default
+    timeout with nothing in the build to say so."""
+    path = _hooks(tmp_path, "hooks:\n"
+                            "  - event: Stop\n"
+                            "    command: hooks/stop.sh\n"
+                            "    timout: 10\n")
+
+    with pytest.raises(SystemExit) as exc:
+        gen_hooks_json.load_hooks(path)
+
+    assert "hooks.yml" in str(exc.value)
+    assert "/hooks/0/timout is not a hooks.yml field" in str(exc.value)
+
+
+def test_a_hook_entry_with_no_command_names_the_field(tmp_path):
+    path = _hooks(tmp_path, "hooks:\n  - event: Stop\n")
+
+    with pytest.raises(SystemExit, match=r"/hooks/0/command is required"):
+        gen_hooks_json.load_hooks(path)
+
+
+def test_every_bad_hook_field_is_reported_at_once(tmp_path):
+    path = _hooks(tmp_path, "hooks:\n"
+                            "  - event: Stop\n"
+                            "    command: hooks/stop.sh\n"
+                            "    once: true\n"
+                            "  - command: hooks/start.sh\n")
+
+    with pytest.raises(SystemExit) as exc:
+        gen_hooks_json.load_hooks(path)
+
+    assert "/hooks/0/once is not a hooks.yml field" in str(exc.value)
+    assert "/hooks/1/event is required" in str(exc.value)

@@ -51,6 +51,44 @@ Validating plugin manifest: /repo/.claude-plugin/plugin.json
 ✔ Validation passed
 """
 
+# Claude Code 2.1.295 added an advice block, printed after the last section's
+# findings. The README path is the finding's field, and the line to paste wraps
+# onto the next line.
+INSTALL_ADVICE = """\
+ℹ Advice (does not change the verdict):
+
+  ❯ /repo/README.md: This README has no line that installs "demo" from a marketplace. Add the install line, which works in one step on Claude Code 2.1.275 or later. Validate the folder that holds its marketplace.json to have <owner>/<repo> filled in, and the name its marketplace lists it under.
+      /plugin install demo --marketplace <owner>/<repo>
+"""
+
+ADVICE_AFTER_WARNING = f"""\
+Validating plugin manifest: /repo/.claude-plugin/plugin.json
+
+Validating plugin: /repo/CLAUDE.md
+
+⚠ Found 1 warning:
+
+  ❯ root: CLAUDE.md at the plugin root is not loaded as project context. To ship context with your plugin, use a skill (skills/<name>/SKILL.md) instead.
+
+{INSTALL_ADVICE}
+✔ Validation passed with warnings
+"""
+
+ADVICE_ALONE = f"""\
+Validating plugin manifest: /repo/.claude-plugin/plugin.json
+
+{INSTALL_ADVICE}
+✔ Validation passed
+"""
+
+ACCEPT_ROOT = """\
+name: demo
+validate:
+  accept:
+    - warning: root
+      because: this repo's own agent instructions, not shipped context
+"""
+
 
 def _plugin(tmp_path, plugin_yml="name: demo\n"):
     (tmp_path / "plugin.yml").write_text(plugin_yml)
@@ -96,12 +134,66 @@ def test_a_clean_report_has_no_findings():
     assert validate.parse(CLEAN) == []
 
 
+def test_advice_after_a_warning_block_is_advice_not_a_warning():
+    kinds = {f.field: f.kind for f in validate.parse(ADVICE_AFTER_WARNING)}
+    assert kinds == {"root": validate.WARNING,
+                     "/repo/README.md": validate.ADVICE}
+
+
+def test_advice_with_no_block_before_it_is_advice_not_an_error():
+    [advice] = validate.parse(ADVICE_ALONE)
+    assert advice.kind == validate.ADVICE
+    assert advice.message.endswith(
+        "/plugin install demo --marketplace <owner>/<repo>")
+
+
+def test_a_block_the_grammar_does_not_name_is_unread():
+    """Its findings would otherwise take the kind of the block before it."""
+    renamed = ADVICE_AFTER_WARNING.replace(
+        "ℹ Advice (does not change the verdict):", "★ Notes:")
+    kinds = {f.field: f.kind for f in validate.parse(renamed)}
+    assert kinds["/repo/README.md"] == validate.UNREAD
+
+
 # ---- the verdict -----------------------------------------------------------
 
 def test_a_clean_report_passes(tmp_path, monkeypatch, capsys):
     _stub(monkeypatch, CLEAN)
     assert validate.run(_plugin(tmp_path)) == 0
     assert "passes plugin validation" in capsys.readouterr().out
+
+
+def test_advice_alone_passes_and_is_counted(tmp_path, monkeypatch, capsys):
+    _stub(monkeypatch, ADVICE_ALONE)
+    assert validate.run(_plugin(tmp_path)) == 0
+    assert "1 piece of advice above, which never gates" in capsys.readouterr().out
+
+
+def test_advice_after_an_accepted_warning_passes(tmp_path, monkeypatch, capsys):
+    _stub(monkeypatch, ADVICE_AFTER_WARNING)
+    assert validate.run(_plugin(tmp_path, ACCEPT_ROOT)) == 0
+    assert ("1 accepted warning; 1 piece of advice"
+            in capsys.readouterr().out)
+
+
+def test_advice_is_not_listed_with_the_warnings_that_fail(tmp_path, monkeypatch):
+    _stub(monkeypatch, ADVICE_AFTER_WARNING)
+    with pytest.raises(SystemExit) as exc:
+        validate.run(_plugin(tmp_path))
+    assert "root" in str(exc.value)
+    assert "README" not in str(exc.value)
+
+
+def test_a_finding_in_an_unknown_block_fails_naming_the_block(
+        tmp_path, monkeypatch):
+    """A validator release that adds a block shipyard doesn't read can't pass
+    the gate silently, and can't fail it as an error it never reported."""
+    _stub(monkeypatch, ADVICE_AFTER_WARNING.replace(
+        "ℹ Advice (does not change the verdict):", "★ Notes:"))
+    with pytest.raises(SystemExit) as exc:
+        validate.run(_plugin(tmp_path, ACCEPT_ROOT))
+    assert "'★ Notes:'" in str(exc.value)
+    assert "cannot tell whether it gates" in str(exc.value)
 
 
 def test_an_unaccepted_warning_fails_and_says_where_to_accept_it(

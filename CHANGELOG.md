@@ -10,6 +10,27 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Added
+
+- **A hooks.yml entry carries Claude Code's per-hook fields.** `args`,
+  `async`, `asyncRewake`, `if`, `onFailure`, `shell`, `statusMessage`, and
+  `timeout` project into `hooks.json` as written, so `onFailure: block`
+  (Claude Code 2.1.295) and a per-hook `timeout` reach the runtime. Any other
+  key fails the projection naming the entry and the field, where it used to
+  be dropped, and so does an entry with no `event` or `command`.
+
+### Fixed
+
+- **`validate` reads the validator's advice block as advice.** Claude Code
+  2.1.295 prints `ℹ Advice (does not change the verdict):`, for example to
+  suggest a README install line. shipyard read those findings as warnings
+  after a warning block and as errors anywhere else, so an advice-only report
+  failed the gate. Advice now never gates, and the pass line counts it. A
+  finding under a block header shipyard doesn't recognize fails naming the
+  header, instead of taking the kind of the block before it.
+
 ## 2.8.1
 
 ### Fixed
