@@ -55,6 +55,9 @@ _MD_LINK_TEXT = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _HTML_TAG = re.compile(r"<[^>\d]+>")
 _EXPLICIT_ID = re.compile(r"id=[\"']([^\"']+)[\"']")
 _DOCSIFY_MARKER = re.compile(r"\{docsify-ignore(-all)?\}")
+# A heading's `:key=value` tokens, which docsify takes off the text before
+# rendering it (`getAndRemoveConfig`). A key carrying a colon is left alone.
+_HEADING_CONFIG = re.compile(r"(?:^|\s):([\w-]+:?)=?([\w%-]+)?", re.ASCII)
 
 
 def mask_code_spans(line: str) -> str:
@@ -116,16 +119,35 @@ def slugify(heading_text: str) -> str:
     return re.sub(r"^(\d)", r"_\1", text)
 
 
+def _heading_config(heading_text: str) -> tuple[str, dict[str, str | bool]]:
+    """The heading as docsify renders it, and the config tokens it took off."""
+    config: dict[str, str | bool] = {}
+
+    def take(match: re.Match[str]) -> str:
+        key, value = match.group(1), match.group(2)
+        if ":" in key:
+            return match.group(0)
+        config[key] = value or True
+        return ""
+
+    text = re.sub(r"^['\"]|['\"]$", "", heading_text)
+    return _HEADING_CONFIG.sub(take, text).strip(), config
+
+
 def anchors(text: str) -> set[str]:
     """Every fragment the page answers to: its headings' slugs, plus any explicit
-    `id=` target. Repeated headings take docsify's `-1`, `-2` suffixes."""
+    `id=` target. A heading's `:id=` names its slug outright, as docsify's
+    `slugify(config.id || text)` does. Repeated headings take docsify's `-1`,
+    `-2` suffixes."""
     seen: dict[str, int] = {}
     out = set(_EXPLICIT_ID.findall(text))
     for _, line in prose_lines(text):
         match = _HEADING.match(line)
         if not match:
             continue
-        slug = slugify(match.group(2))
+        heading, config = _heading_config(match.group(2))
+        heading_id = config.get("id")
+        slug = slugify(heading_id if isinstance(heading_id, str) else heading)
         if not slug:
             continue
         count = seen.get(slug, 0)

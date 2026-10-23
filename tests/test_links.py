@@ -111,6 +111,16 @@ def test_an_explicit_id_is_an_anchor_too():
     assert "manual" in links.anchors('<a id="manual"></a>\n\n# Page\n')
 
 
+def test_a_heading_that_names_its_id_answers_to_that_id_alone():
+    """docsify serves a heading at `slugify(config.id || text)`, so `:id=` replaces
+    the slug rather than adding to it."""
+    assert links.anchors("## Feedback sits beside the code :id=tenet-in-place\n") == {"tenet-in-place"}
+
+
+def test_a_heading_config_token_stays_out_of_its_slug():
+    assert links.anchors("## Install :class=wide\n") == {"install"}
+
+
 def test_a_heading_inside_a_fence_is_not_an_anchor():
     assert links.anchors("```\n# Not a heading\n```\n") == set()
 
