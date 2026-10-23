@@ -10,6 +10,14 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Fixed
+
+- **A link to a heading's `:id=` anchor passes the docs link check.** docsify
+  serves `## Tenets :id=tenets` at `tenets`, and the check now reads it there
+  rather than reporting the link as one that 404s.
+
 ## 2.9.0
 
 ### Added
