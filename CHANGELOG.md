@@ -10,7 +10,12 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
-## Unreleased
+## 2.10.0
+
+### Added
+
+- **`deploy-docs.yml` takes an optional `ref`** to build from, defaulting to
+  the commit that triggered the caller.
 
 ### Fixed
 
@@ -20,8 +25,6 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
   next push. `release.yml` now deploys the docs from the tag it cuts. Your
   `release.yml` must grant `pages: write` and `id-token: write` alongside
   `contents: write`, or the Release run fails before it starts.
-- **`deploy-docs.yml` takes an optional `ref`** to build from, defaulting to
-  the commit that triggered the caller.
 
 ## 2.9.1
 
