@@ -20,7 +20,16 @@ Everything you decide happens in `CHANGELOG.md`, before you touch the workflow.
 
 4. **Dispatch `Release`** from the Actions tab, choosing `patch`, `minor`, or `major`. Pick the level from the notes you just wrote: a `### Removed` entry is a major, a `### Added` entry is a minor, anything else is a patch.
 
-From there CI derives the version from `plugin.yml`, retitles your `## Unreleased` section to it, regenerates the artifacts, commits, tags that commit, publishes the release from the section, and dispatches the marketplace rebuild. Nothing is left for you to do afterwards.
+From there CI derives the version from `plugin.yml`, retitles your `## Unreleased` section to it, regenerates the artifacts, commits, tags that commit, publishes the release from the section, dispatches the marketplace rebuild, and deploys the docs site from the tag. Nothing is left for you to do afterwards.
+
+The plugin's `release.yml` has to grant what that docs deploy needs, since a called workflow can't hold more than its caller:
+
+```yaml
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+```
 
 The bump is the one answer the workflow can't check for you. It asks because it can't read intent out of prose: a breaking change filed under `### Changed` is indistinguishable from a rewording. When the two readings differ, over-bump — an over-bump spends a version number, an under-bump ships a break to someone pinning a range.
 

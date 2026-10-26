@@ -1,15 +1,22 @@
 name: Deploy docs (shipyard)
 
 # Reusable docs deploy. A plugin calls it from its own deploy-docs.yml on push to
-# main. shipyard renders docs/ from the plugin's sources (skills/rules/… +
-# suite.json) via actions/build-docs, then publishes docs/ to GitHub Pages.
+# main, and release.yml calls it with the tag it just cut. shipyard renders docs/
+# from the plugin's sources (skills/rules/… + suite.json) via actions/build-docs,
+# then publishes docs/ to GitHub Pages.
 #
 # GitHub Pages needs pages: write + id-token: write. Reusable-workflow permissions
 # are capped by the caller's token, so the caller must grant those at its top
-# level (its deploy-docs.yml does).
+# level (its deploy-docs.yml and release.yml do).
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        description: The ref to build from. Empty builds the commit that triggered the caller.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   pages: write
@@ -28,6 +35,8 @@ jobs:
     steps:
       - name: Check out the plugin
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/configure-pages@v6
       # Pinned rather than tracking the ref the caller pinned this workflow at:
       # `uses:` takes no expression, so ${{ github.ref }} isn't available here.

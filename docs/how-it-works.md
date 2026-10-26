@@ -326,7 +326,10 @@ sequenceDiagram
   CI->>GH: publish from that section
   CI->>MP: dispatch the rebuild
   MP->>MP: rebuild the catalog
+  CI->>GH: deploy the docs from the tag
 ```
+
+**The release re-deploys the docs.** The site renders version-specific content, such as the release badge, so each release needs a fresh build. The run does that deploy because the bump is pushed with its `GITHUB_TOKEN`, and GitHub starts no workflows from a push made with that token, so the plugin's push-to-main docs deploy never sees it.
 
 **Three artifacts, one commit.** The notes, the version in `plugin.yml`, and the `plugin.json` projected from it land together as `Release v1.3.0`, and the tag names that commit. So the release body *is* the committed section, the tag names a commit that already carries the version, and the compare link between two tags contains the changelog. Those three used to disagree in whichever way the ordering happened to break that release.
 
