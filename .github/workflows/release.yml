@@ -7,7 +7,8 @@ name: Release (shipyard)
 #
 # It derives the next version from plugin.yml, retitles that section to it,
 # regenerates the artifacts, commits, **then** tags that commit, publishes the
-# release from the section it just wrote, and dispatches the marketplace rebuild.
+# release from the section it just wrote, dispatches the marketplace rebuild, and
+# deploys the docs from the tag.
 # The plugin name comes from the caller's repository, so nothing here is
 # plugin-specific.
 #
@@ -24,6 +25,14 @@ name: Release (shipyard)
 # The caller must pass `secrets: inherit` so MARKETPLACE_DISPATCH_TOKEN — a token
 # allowed to repository_dispatch to chris-peterson/claude-marketplace — reaches
 # this workflow (the default GITHUB_TOKEN cannot dispatch across repositories).
+#
+# The docs render version-specific content (the release badge), so each release
+# re-deploys them. That deploy is a job here because the bump is pushed with
+# GITHUB_TOKEN, and a push made with that token starts no workflows, so the
+# caller's push-to-main docs deploy never sees a release. The caller must grant
+# `pages: write` and `id-token: write` alongside `contents: write`: a called
+# workflow's permissions are capped by the caller's.
+# https://docs.github.com/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow
 
 on:
   workflow_call:
@@ -42,6 +51,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.rel.outputs.version }}
     env:
       # shipyard is fetched by the checkout below and run in place — no install.
       PYTHONPATH: .shipyard/src
@@ -139,3 +150,13 @@ jobs:
             -f event_type=plugin-released \
             -f "client_payload[plugin]=$PLUGIN" \
             -f "client_payload[tag]=v$VERSION"
+
+  docs:
+    needs: release
+    permissions:
+      pages: write
+      id-token: write
+    # Pinned to this line for the reason the tooling checkout above is.
+    uses: chris-peterson/shipyard/.github/workflows/deploy-docs.yml@v2
+    with:
+      ref: v${{ needs.release.outputs.version }}

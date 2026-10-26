@@ -32,10 +32,16 @@ def _steps(doc):
 def _self_references(path):
     """(where, ref) for each place this file names shipyard itself.
 
-    Two spellings reach the same thing: `uses:` on an action in this repo, and an
+    Three spellings reach the same thing: `uses:` on a job calling a workflow in
+    this repo, `uses:` on a step running an action in this repo, and an
     `actions/checkout` of this repo by `repository:` + `ref:`.
     """
     doc = yaml.safe_load(path.read_text()) or {}
+    for job in (doc.get("jobs") or {}).values():
+        uses = job.get("uses") or ""
+        if uses.startswith(f"{SELF}/") and "@" in uses:
+            path_part, ref = uses.rsplit("@", 1)
+            yield f"{path.name}: uses {path_part}", ref
     for step in _steps(doc):
         uses = step.get("uses") or ""
         if uses.startswith(f"{SELF}/") and "@" in uses:
@@ -53,6 +59,7 @@ def test_the_self_references_are_found():
     assert found == {
         "deploy-docs.yml: uses chris-peterson/shipyard/actions/build-docs",
         "release.yml: checkout chris-peterson/shipyard",
+        "release.yml: uses chris-peterson/shipyard/.github/workflows/deploy-docs.yml",
     }
 
 

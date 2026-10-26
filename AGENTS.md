@@ -163,7 +163,8 @@ in that window is a cherry-pick onto a `v1` branch and a re-cut tag.
   `## Unreleased`, commits them, and dispatches its own `release.yml` with a bump
   level; that calls the reusable `release.yml` here, whose `stage-release` step
   derives the version, retitles the section, commits, tags *that* commit,
-  publishes from the section, and dispatches the marketplace rebuild. Every plugin
+  publishes from the section, dispatches the marketplace rebuild, and deploys the
+  docs from the tag. Every plugin
   in the suite is on this path, and it is the one the docs recommend.
   shipyard has no caller of its own to dispatch, so it releases from the
   operator's checkout with `cut.py` — the `release` verb — which answers the same
