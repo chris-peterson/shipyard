@@ -109,6 +109,22 @@ shipyard checks each plugin's `marketplace:` dependency field against that list
 while generating the manifest, so a dependency that would fail at install fails
 at projection instead.
 
+### A proxied copy never satisfies a dependency
+
+Claude Code matches a dependency on `name@marketplace`, and a bare name means
+the declaring plugin's own marketplace. A copy of the same plugin installed
+from another marketplace, such as an organization's marketplace that proxies
+it, doesn't count. The user who installed the proxied copy then sees the
+dependent plugin disabled with `Dependency "<name>@<marketplace>" is not
+installed`, and the copy Claude Code auto-installs to fix it loads the plugin a
+second time.
+
+Claude Code has no optional dependency and no "from any marketplace" form, so
+declare a hard dependency only on a plugin whose users always install it from
+the same marketplace as yours. When a sibling is also published through a
+proxy, leave it out of `dependencies:` and list it under `suite.dependencies:`,
+so the doc site still tells users to install it.
+
 ### Version constraints need release tags shipyard does not write yet
 
 Claude Code resolves a `version` range against tags named
