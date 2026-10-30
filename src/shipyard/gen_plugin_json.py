@@ -12,10 +12,11 @@ from . import _validate
 from ._common import load_plugin, plugin_root
 
 # plugin.json carries only the packaging fields Claude Code reads and the
-# listing URLs `claude plugin validate` recognizes, in this order. The rest of
-# plugin.yml (marketplace:, suite:, icon:) projects into other targets or
-# nowhere: a field the validator doesn't recognize is a warning every consumer
-# would have to accept, and one nothing reads back is a value that does nothing.
+# directory listing fields (icon and the listing URLs) `claude plugin validate`
+# recognizes, in this order. The rest of plugin.yml (marketplace:, suite:)
+# projects into other targets or nowhere: a field the validator doesn't
+# recognize is a warning every consumer would have to accept, and one nothing
+# reads back is a value that does nothing.
 PACKAGING_FIELDS = (
     "name",
     "version",
@@ -25,6 +26,7 @@ PACKAGING_FIELDS = (
     "license",
     "keywords",
     "homepage",
+    "icon",
     "documentationUrl",
     "supportUrl",
     "privacyPolicyUrl",

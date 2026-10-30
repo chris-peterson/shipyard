@@ -12,7 +12,7 @@ The distinction is about who owns which fact. A plugin owns everything about its
 
 Each generator reads a plugin's canonical source and writes a committed artifact.
 
-- **`gen-plugin-json`** — projects the packaging fields of `plugin.yml` into `.claude-plugin/plugin.json` (the file Claude Code reads at install), including `homepage` from the `marketplace:` block and the listing URLs (`documentationUrl`, which defaults to `homepage`, `supportUrl`, `privacyPolicyUrl`, `termsOfServiceUrl`).
+- **`gen-plugin-json`** — projects the packaging fields of `plugin.yml` into `.claude-plugin/plugin.json` (the file Claude Code reads at install), including `homepage` from the `marketplace:` block, `icon` (a path to an image inside the plugin), and the listing URLs (`documentationUrl`, which defaults to `homepage`, `supportUrl`, `privacyPolicyUrl`, `termsOfServiceUrl`).
 - **`gen-describe`** — the interesting one. It derives a one-line description for every artifact from the artifact's *own* source, and syncs them into `plugin.yml` between generated markers:
 
   | Artifact | Description comes from |

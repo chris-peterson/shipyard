@@ -32,6 +32,11 @@ for a live exception.
 says does not change the verdict, and its exit code agrees, even under
 `--strict`. The report printed above the verdict carries it, and the pass line
 counts it so it isn't lost in the log.
+
+**Plugin directory checks** never fail either. They are what Anthropic's plugin
+directory refuses or flags in a submission (a missing icon, a README with no
+install line), printed in a section of their own that the validator says does
+not change the result. They're reported and counted the way advice is.
 """
 from __future__ import annotations
 
@@ -49,7 +54,11 @@ ARGS = ("plugin", "validate")
 # The validator's report, line by line. `Validating <what>: <path>` opens a
 # section; a `Found N errors:`/`Found N warnings:`/`Advice (...):` header opens
 # a block within it; `❯ <field>: <message>` is one finding in that block.
+# `Plugin directory checks for <path>. …` opens the directory section, whose
+# blocks use the same headers and run until the line that closes it.
 SECTION = "Validating "
+DIRECTORY_SECTION = "Plugin directory checks for "
+DIRECTORY_END = "These plugin directory checks"
 ERROR_MARK = "✘"    # ✘
 WARN_MARK = "⚠"     # ⚠
 ADVICE_MARK = "ℹ"   # ℹ
@@ -60,7 +69,7 @@ FINDING = "❯"       # ❯
 # never gates here either. A finding under a header this grammar doesn't name is
 # UNREAD and fails the gate: whether it should gate depends on a kind only the
 # validator knows, and borrowing the previous block's would be a guess.
-ERROR, WARNING, ADVICE, UNREAD = "error", "warning", "advice", "unread"
+ERROR, WARNING, ADVICE, DIRECTORY, UNREAD = "error", "warning", "advice", "directory", "unread"
 
 # Every report ends in one of these. Requiring it is what separates "the
 # validator looked and found nothing" from "something else ran": a first-run
@@ -97,13 +106,21 @@ def parse(output: str) -> list[Finding]:
     source = ""
     header = ""
     kind = UNREAD
+    directory = False
     for raw in output.splitlines():
         line = raw.strip()
         if not line:
             continue
         if line.startswith(SECTION):
             source = line.split(":", 1)[1].strip() if ":" in line else ""
-            header, kind = "", UNREAD
+            header, kind, directory = "", UNREAD, False
+            continue
+        if line.startswith(DIRECTORY_SECTION):
+            source = line[len(DIRECTORY_SECTION):].split(". ", 1)[0]
+            header, kind, directory = "", UNREAD, True
+            continue
+        if line.startswith(DIRECTORY_END):
+            header, kind, directory = "", UNREAD, False
             continue
         if line.startswith(FINDING):
             body = line[len(FINDING):].strip()
@@ -118,6 +135,8 @@ def parse(output: str) -> list[Finding]:
                 findings[-1].message = f"{findings[-1].message} {line}"
             continue
         header, kind = line, _block_kind(line)
+        if directory and kind in (ERROR, WARNING):
+            kind = DIRECTORY
     return findings
 
 
@@ -261,6 +280,11 @@ def run(root: str | pathlib.Path | None = None) -> int:
     if advice:
         notes.append(f"{advice} piece{'' if advice == 1 else 's'} of advice "
                      f"above, which never gates")
+    listing = sum(1 for f in findings if f.kind == DIRECTORY)
+    if listing:
+        notes.append(f"{listing} plugin directory finding"
+                     f"{'' if listing == 1 else 's'} above, which never "
+                     f"{'gates' if listing == 1 else 'gate'}")
     print(f"shipyard: {target.name} passes plugin validation"
           + (f" ({'; '.join(notes)})." if notes else "."))
     return 0

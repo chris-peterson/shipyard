@@ -81,6 +81,39 @@ Validating plugin manifest: /repo/.claude-plugin/plugin.json
 ✔ Validation passed
 """
 
+# Claude Code 2.1.314 adds a section of the checks Anthropic's plugin directory
+# runs, under the same block headers as the validator's own findings.
+DIRECTORY_CHECKS = f"""\
+Validating plugin manifest: /repo/.claude-plugin/plugin.json
+
+Validating plugin: /repo/CLAUDE.md
+
+⚠ Found 1 warning:
+
+  ❯ root: CLAUDE.md at the plugin root is not loaded as project context. To ship context with your plugin, use a skill (skills/<name>/SKILL.md) instead.
+
+Plugin directory checks for /repo. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.
+
+✘ Found 2 problems the plugin directory refuses a submission for:
+
+  ❯ README.md: README missing (README_MISSING). This plugin has no README.md.
+    Fix: Add a README.md to the plugin folder describing what the plugin does.
+  ❯ LICENSE: License missing (LICENSE_MISSING). This plugin has no LICENSE file and plugin.json has no `license`.
+    Fix: Add a LICENSE file to the plugin folder, or set `license` (an SPDX id) in plugin.json.
+
+⚠ Found 1 plugin directory warning:
+
+  ❯ .claude-plugin/plugin.json icon: No icon (ICON_MISSING). No icon found in the plugin.
+    Fix: Add a square PNG to the plugin folder at .claude-plugin/icon.png.
+
+These plugin directory checks do not change the result below.
+
+The directory also runs a safety scan and a policy review that this command does not.
+
+{INSTALL_ADVICE}
+✔ Validation passed with warnings
+"""
+
 ACCEPT_ROOT = """\
 name: demo
 validate:
@@ -147,6 +180,19 @@ def test_advice_with_no_block_before_it_is_advice_not_an_error():
         "/plugin install demo --marketplace <owner>/<repo>")
 
 
+def test_plugin_directory_checks_are_their_own_kind():
+    """Under the directory section, an error or warning header opens a
+    directory block, and the section's path is each finding's source."""
+    found = [(f.field, f.kind, f.source) for f in validate.parse(DIRECTORY_CHECKS)]
+    assert found == [
+        ("root", validate.WARNING, "/repo/CLAUDE.md"),
+        ("README.md", validate.DIRECTORY, "/repo"),
+        ("LICENSE", validate.DIRECTORY, "/repo"),
+        (".claude-plugin/plugin.json icon", validate.DIRECTORY, "/repo"),
+        ("/repo/README.md", validate.ADVICE, "/repo"),
+    ]
+
+
 def test_a_block_the_grammar_does_not_name_is_unread():
     """Its findings would otherwise take the kind of the block before it."""
     renamed = ADVICE_AFTER_WARNING.replace(
@@ -174,6 +220,14 @@ def test_advice_after_an_accepted_warning_passes(tmp_path, monkeypatch, capsys):
     assert validate.run(_plugin(tmp_path, ACCEPT_ROOT)) == 0
     assert ("1 accepted warning; 1 piece of advice"
             in capsys.readouterr().out)
+
+
+def test_plugin_directory_checks_never_gate(tmp_path, monkeypatch, capsys):
+    """The validator says they don't change its result, so they don't change
+    shipyard's either: not its refusals, and not its warnings."""
+    _stub(monkeypatch, DIRECTORY_CHECKS)
+    assert validate.run(_plugin(tmp_path, ACCEPT_ROOT)) == 0
+    assert "3 plugin directory findings above, which never gate" in capsys.readouterr().out
 
 
 def test_advice_is_not_listed_with_the_warnings_that_fail(tmp_path, monkeypatch):
@@ -374,11 +428,11 @@ validate:
 
 # ---- what the projection puts in front of the validator ---------------------
 
-def test_a_field_the_runtime_does_not_read_stays_out_of_plugin_json(tmp_path):
-    """`icon:` in plugin.yml feeds nothing in plugin.json that Claude Code is
-    known to read, so projecting it would ship a value that does nothing."""
+def test_the_icon_reaches_plugin_json(tmp_path):
+    """Anthropic's directory and marketplace catalogs read `icon` from
+    plugin.json, and the validator recognizes it."""
     plugin = _plugin(tmp_path, "name: demo\nversion: 1.0.0\nicon: docs/favicon.svg\n")
-    assert "icon" not in json.loads(gen_plugin_json.build(plugin))
+    assert json.loads(gen_plugin_json.build(plugin))["icon"] == "docs/favicon.svg"
 
 
 def test_listing_urls_reach_plugin_json(tmp_path):

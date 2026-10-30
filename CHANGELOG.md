@@ -10,6 +10,26 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Added
+
+- **plugin.json carries `icon`.** An `icon:` at the top of `plugin.yml`, the
+  path to an image inside the plugin, now projects into `plugin.json`, where
+  Anthropic's plugin directory and marketplace catalogs read it.
+
+### Changed
+
+- **`actions/project` validates with Claude Code 2.1.314** (from 2.1.281). Its
+  ruleset decides which warnings a plugin's `validate: accept:` has to name: it
+  warns on a hook command that leaves `${CLAUDE_PLUGIN_ROOT}` unquoted, and it
+  checks the icon file itself.
+- **The plugin directory's checks never gate.** 2.1.314 prints what
+  Anthropic's plugin directory would refuse or flag in a submission (a missing
+  icon, a missing LICENSE) in a section it says doesn't change the result.
+  `validate` reports and counts those findings the way it does advice, rather
+  than failing on them as warnings.
+
 ## 2.10.0
 
 ### Added
