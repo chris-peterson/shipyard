@@ -17,6 +17,10 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
 - **plugin.json carries `icon`.** An `icon:` at the top of `plugin.yml`, the
   path to an image inside the plugin, now projects into `plugin.json`, where
   Anthropic's plugin directory and marketplace catalogs read it.
+- **The icon is the docs site's favicon.** `build-docs` copies it to
+  `docs/favicon.<ext>` and links it from the generated `index.html`, so an icon
+  kept beside the manifest (`.claude-plugin/icon.svg`, where Claude Code looks
+  for one) needs no hand-kept copy in `docs/`.
 
 ### Changed
 

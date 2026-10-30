@@ -167,6 +167,51 @@ def test_a_resource_path_containing_docs_is_refused(plugin):
         build_docs.run(root)
 
 
+def test_the_icon_beside_the_manifest_is_the_sites_favicon(plugin):
+    root, write = plugin
+    (root / "plugin.yml").write_text(PLUGIN_YML + "icon: .claude-plugin/icon.svg\ndocs: {}\n")
+    write(".claude-plugin/icon.svg", "<svg>icon</svg>")
+    write("docs/README.md", "# demo")
+
+    build_docs.run(root)
+
+    assert (root / "docs" / "favicon.svg").read_text() == "<svg>icon</svg>"
+    assert '<link rel="icon" type="image/svg+xml" href="favicon.svg">' in (
+        root / "docs" / "index.html").read_text()
+
+
+def test_a_png_icon_publishes_and_links_as_a_png(plugin):
+    root, write = plugin
+    (root / "plugin.yml").write_text(PLUGIN_YML + "icon: .claude-plugin/icon.png\ndocs: {}\n")
+    write(".claude-plugin/icon.png", "png")
+    write("docs/README.md", "# demo")
+
+    build_docs.run(root)
+
+    assert (root / "docs" / "favicon.png").read_text() == "png"
+    assert 'type="image/png" href="favicon.png"' in (root / "docs" / "index.html").read_text()
+
+
+def test_an_icon_kept_as_the_favicon_is_left_in_place(plugin):
+    root, write = plugin
+    (root / "plugin.yml").write_text(PLUGIN_YML + "icon: docs/favicon.svg\n")
+    write("docs/favicon.svg", "<svg>kept</svg>")
+    write("docs/README.md", "# demo")
+
+    build_docs.run(root)
+
+    assert (root / "docs" / "favicon.svg").read_text() == "<svg>kept</svg>"
+
+
+def test_an_icon_the_plugin_does_not_ship_fails_the_build(plugin):
+    root, write = plugin
+    (root / "plugin.yml").write_text(PLUGIN_YML + "icon: .claude-plugin/icon.svg\n")
+    write("docs/README.md", "# demo")
+
+    with pytest.raises(SystemExit, match="must name a file inside the plugin"):
+        build_docs.run(root)
+
+
 def test_a_projected_artifact_wins_a_collision_with_a_resource(plugin):
     """Copy order decides who wins, so it is pinned here rather than left to the
     order the steps happen to sit in."""

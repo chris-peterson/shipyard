@@ -2,6 +2,7 @@
 
   docs: pre_render: -> the plugin's own generators, run first (if declared)
   assets/* -> docs/*                                (resource paths, copied first)
+  plugin.yml icon: -> docs/favicon.<ext>            (the plugin's icon, if declared)
   skills/<name>/SKILL.md -> docs/skills/<name>.md   (frontmatter stripped, the
                                                      `/<plugin>:<name>` fence added)
   skills/<name>/references/*.md -> docs/skills/<name>/references/*.md
@@ -108,6 +109,23 @@ ARTIFACT_HEADINGS = {
 # Publish assets/ when plugin.yml names nothing.
 DEFAULT_RESOURCES = ("assets",)
 
+# The site's favicon is the plugin's icon, the image plugin.json names beside
+# the manifest, published under the name the index.html link asks for.
+FAVICON_TYPES = {".svg": "image/svg+xml", ".png": "image/png"}
+
+
+def _favicon(spec: dict) -> tuple[str, str]:
+    """The favicon's published name and type: the declared icon's, else the
+    hand-kept docs/favicon.svg a plugin without one ships."""
+    icon = spec.get("icon")
+    if not icon:
+        return "favicon.svg", FAVICON_TYPES[".svg"]
+    suffix = pathlib.PurePosixPath(icon).suffix.lower()
+    if suffix not in FAVICON_TYPES:
+        raise SystemExit(f"shipyard: plugin.yml `icon:` must be one of "
+                         f"{', '.join(FAVICON_TYPES)}, got {icon!r}")
+    return f"favicon{suffix}", FAVICON_TYPES[suffix]
+
 # A file reference: an `<img src>` or a markdown image names a file that has to
 # exist in the artifact. A `[text](page.md)` link names a docsify route instead,
 # and is checked separately against the model in `links.py`. The two resolve
@@ -127,6 +145,7 @@ def _render_index_html(spec: dict) -> str:
     session player is emitted only when the plugin ships a suite: preview."""
     name = html.escape(spec.get("name", ""))
     description = html.escape(spec.get("description", ""))
+    favicon, favicon_type = _favicon(spec)
     docs = block(spec, "docs", "plugin.yml")
     langs = ", ".join(f"'{lang}'" for lang in (docs.get("code_languages") or ["bash", "yaml", "json"]))
 
@@ -144,7 +163,7 @@ def _render_index_html(spec: dict) -> str:
         '  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />',
         f'  <meta name="description" content="{description}">',
         '  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">',
-        '  <link rel="icon" type="image/svg+xml" href="favicon.svg">',
+        f'  <link rel="icon" type="{favicon_type}" href="{favicon}">',
         "</head>",
         "<body>",
         '  <div id="app">Loading…</div>',
@@ -583,6 +602,21 @@ def declared_resources(spec: dict) -> list[str] | None:
     return [p.strip() for p in declared if p.strip()] or None
 
 
+def _publish_icon(r: pathlib.Path, docs: pathlib.Path, spec: dict) -> None:
+    """Copy plugin.yml's `icon:` to the favicon the index.html links. An icon
+    that already is docs/favicon.svg is the published file, so it stays put."""
+    if not spec.get("icon"):
+        return
+    src = (r / spec["icon"]).resolve()
+    if not src.is_relative_to(r) or not src.is_file():
+        raise SystemExit(f"shipyard: plugin.yml `icon:` must name a file inside the plugin: {spec['icon']}")
+    dest = docs / _favicon(spec)[0]
+    if src == dest.resolve():
+        return
+    docs.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dest)
+
+
 def _publish_resources(r: pathlib.Path, docs: pathlib.Path,
                        resources: list[str] | None) -> None:
     """Copy the plugin's resource paths into the published tree, flattening a
@@ -714,6 +748,7 @@ def run(root: str | pathlib.Path | None = None) -> int:
     # resource quietly replacing one of them would be a build whose output
     # depends on copy order.
     _publish_resources(r, docs, declared_resources(docs_spec))
+    _publish_icon(r, docs, plugin)
 
     # Each rendered page paired with the source it came from, so the link rewrite
     # below can resolve that page's links the way a reader of the source does.
