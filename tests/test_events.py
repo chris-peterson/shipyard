@@ -223,6 +223,61 @@ def test_several_events_get_an_index_list():
     assert "- [`cr.updated`](#cr-updated)" in page
 
 
+SESSION_PUBLISHER = {**PUBLISHER, "name": "tack", "events": {"publishes": [
+    {"key": "session.ended", "when": "the work closed out.", "fields": {
+        "session": "the session id",
+        "tacks": {"describe": "the tack ids", "type": "array"},
+    }},
+]}}
+
+
+def test_the_sample_body_carries_the_declared_fields():
+    # The sample is what a subscriber copies, so a field the event never
+    # carries would have them parse for something that never arrives.
+    page = build_docs._render_events_md(SESSION_PUBLISHER)
+    assert 'codes.bridgeai.tack/session.ended {"session":"…","tacks":[]}' in page
+    assert '"uri"' not in page
+
+
+def test_the_snippet_reads_uri_where_the_event_declares_it():
+    page = build_docs._render_events_md(PUBLISHER)
+    assert "uri=$(printf '%s' \"${line#* }\" | jq -er" in page
+
+
+def test_the_snippet_reads_a_declared_string_field_otherwise():
+    page = build_docs._render_events_md(SESSION_PUBLISHER)
+    assert "session=$(printf" in page
+    assert "(.session // \"\"" in page
+
+
+def test_the_snippet_feeds_grep_from_a_here_string():
+    # Piping a large stdout into `grep -m1` under pipefail kills the writer
+    # with SIGPIPE once grep matches, and `|| exit 0` then drops the match.
+    page = build_docs._render_events_md(PUBLISHER)
+    assert "<<<\"$output\") || exit 0" in page
+    assert "| grep -m1" not in page
+
+
+def test_the_snippet_strips_control_characters():
+    page = build_docs._render_events_md(PUBLISHER)
+    assert 'gsub("[[:cntrl:]]"; "")' in page
+
+
+def test_an_event_with_no_fields_shows_an_empty_body_and_no_parse():
+    spec = {**PUBLISHER, "events": {"publishes": [{"key": "cr.closed", "when": "it closed."}]}}
+    page = build_docs._render_events_md(spec)
+    assert "codes.bridgeai.anchor/cr.closed {}" in page
+    assert "jq -er" not in page
+
+
+def test_a_field_type_with_no_sample_fails_the_build():
+    spec = {**PUBLISHER, "events": {"publishes": [
+        {"key": "cr.created", "fields": {"uri": {"describe": "where", "type": "url"}}},
+    ]}}
+    with pytest.raises(SystemExit, match="field 'uri' declares type 'url'"):
+        build_docs._render_events_md(spec)
+
+
 def test_emitted_by_is_code_for_a_path_and_prose_otherwise():
     page = build_docs._render_events_md(PUBLISHER)
     assert "Emitted by `scripts/prepare-review.sh`." in page
