@@ -30,8 +30,8 @@ from ._common import plugin_root
 def _manifest(root: pathlib.Path) -> tuple[str, callable, callable]:
     """Which file carries this repo's version, and how to read and write it.
 
-    A plugin's is `plugin.yml`. shipyard has no plugin.yml — it is not a plugin —
-    so its own `pyproject.toml` is the equivalent manifest at the root. Anything
+    A plugin's is `plugin.yml`. shipyard has no plugin.yml at its root, so its
+    own `pyproject.toml` is the equivalent manifest there. Anything
     else has no version to bump and says so rather than guessing at one."""
     if (root / "plugin.yml").exists():
         return "plugin.yml", version.read_plugin_yml, version.write_plugin_yml

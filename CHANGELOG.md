@@ -14,6 +14,18 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
 
 ### Added
 
+- **`shipyard onboarding <name>`** reports what a plugin still needs before its
+  marketplace ships it: its group and listing in `plugin.yml`, the repo's
+  homepage, Pages, and dispatch secret, its place in `plugins.yml`, the
+  marketplace README, the hub page `plugins.yml` names under the new optional
+  `hub:` key, and a release. Each gap prints with its fix. It finds the
+  marketplace from `--root`, the current directory, or the one sibling checkout
+  holding `plugins.yml`, so it runs from inside a plugin checkout too.
+- **shipyard bundles a Claude Code plugin** in `plugin/`, whose
+  `/shipyard:add-plugin` skill walks a plugin through those gaps. Load it with
+  `claude --plugin-dir plugin` or a rig pin. The release writes shipyard's
+  version into it.
+
 - **plugin.json carries `icon`.** An `icon:` at the top of `plugin.yml`, the
   path to an image inside the plugin, now projects into `plugin.json`, where
   Anthropic's plugin directory and marketplace catalogs read it.

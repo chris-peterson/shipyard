@@ -7,6 +7,7 @@ head of the branch. The happy path is checked for the one property the whole
 design exists to produce: the tag names a commit that already carries the version
 and the changelog section, and the published body is that section byte for byte.
 """
+import json
 import pathlib
 import subprocess
 
@@ -421,6 +422,31 @@ def test_the_major_alias_follows_the_newest_release_on_its_line(tooling_repo):
     assert cut.run(tooling_repo, yes=True) == 0
 
     upstream = tooling_repo.parent / "up.git"
+    assert git.run(upstream, "rev-parse", "v2") == git.run(upstream, "rev-parse", "v2.2.0")
+
+
+def test_the_bundled_plugin_carries_the_released_version(tooling_repo):
+    """shipyard ships a plugin from `plugin/`. pyproject.toml stays the source of
+    record, so the release writes the same version into the bundled plugin, and
+    the alias still moves: a root plugin.yml would have made this a plugin."""
+    from shipyard import gen_plugin_json
+    bundled = tooling_repo / cut.BUNDLED_PLUGIN
+    bundled.mkdir()
+    (bundled / "plugin.yml").write_text(
+        "name: tooling\nversion: 2.1.0\ndescription: Bundled skills.\n")
+    gen_plugin_json.run(bundled)
+    _run(tooling_repo, "add", "-A")
+    _run(tooling_repo, "commit", "--quiet", "-m", "Bundle a plugin")
+    _run(tooling_repo, "push", "--quiet")
+    _land(tooling_repo, "A change")
+    _write_notes(tooling_repo, "### Added\n\n- A thing")
+
+    assert cut.run(tooling_repo, yes=True) == 0
+
+    upstream = tooling_repo.parent / "up.git"
+    assert "version: 2.2.0" in git.run(upstream, "show", "v2.2.0:plugin/plugin.yml")
+    manifest = json.loads(git.run(upstream, "show", "v2.2.0:plugin/.claude-plugin/plugin.json"))
+    assert manifest["version"] == "2.2.0"
     assert git.run(upstream, "rev-parse", "v2") == git.run(upstream, "rev-parse", "v2.2.0")
 
 

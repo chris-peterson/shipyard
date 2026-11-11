@@ -73,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     ros.add_argument("--include-retired", action="store_true",
                      help="also list the plugins the groups have retired, whose "
                           "checkouts the growth view still reads")
+    onb = add("onboarding", help="what a plugin still needs before the aggregator "
+                                 "ships it, with the fix for each gap")
+    onb.add_argument("names", nargs="+", help="the plugins to check")
     add("gen-marketplace-json", help="plugins.yml + plugins → .claude-plugin/marketplace.json")
     add("gen-plugins-js", help="plugins' suite: blocks → docs/plugins.js")
     add("gen-deps-json", help="plugins' declared dependencies → docs/deps.json")
@@ -135,6 +138,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "roster":
         from . import roster
         return roster.run(root, include_retired=args.include_retired)
+    if args.command == "onboarding":
+        from . import onboarding
+        return onboarding.run(args.names, root)
     if args.command == "gen-marketplace-json":
         from . import gen_marketplace_json
         return gen_marketplace_json.run(root)

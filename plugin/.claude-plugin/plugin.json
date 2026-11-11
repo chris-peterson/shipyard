@@ -1,0 +1,18 @@
+{
+  "name": "shipyard",
+  "version": "2.10.0",
+  "description": "Skills for maintaining a marketplace of Claude Code plugins built with shipyard: onboard a plugin and see what it still lacks.",
+  "author": {
+    "name": "chris-peterson"
+  },
+  "repository": "https://github.com/chris-peterson/shipyard",
+  "license": "MIT",
+  "keywords": [
+    "plugins",
+    "marketplace",
+    "onboarding",
+    "claude-code"
+  ],
+  "homepage": "https://chris-peterson.github.io/shipyard/#/",
+  "documentationUrl": "https://chris-peterson.github.io/shipyard/#/"
+}

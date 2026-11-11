@@ -7,12 +7,20 @@ converting a plugin, are on the docs site
 (https://chris-peterson.github.io/shipyard); this file is for working on shipyard
 itself.
 
-**shipyard is not a plugin.** It's a Python package that runs *against* a target
-plugin repo — the one whose sources it projects. Every command resolves that
-repo's root the same way: an explicit `--root`, else the current directory (which
-is how CI runs it, from the plugin checkout). Root is never derived from
-shipyard's own file location; the per-plugin scripts it replaced did that, and
-it's the mistake to avoid re-introducing.
+**shipyard is a Python package that runs *against* a target repo** — the one
+whose sources it projects. Every command resolves that repo's root the same way:
+an explicit `--root`, else the current directory (which is how CI runs it, from
+the plugin checkout). Root is never derived from shipyard's own file location;
+the per-plugin scripts it replaced did that, and it's the mistake to avoid
+re-introducing.
+
+It also bundles a Claude Code plugin in `plugin/` (`/shipyard:add-plugin`), for
+work a person does across repos rather than CI does in one. The plugin sits below
+the root so the repo itself never reads as a plugin to the release, which would
+stop it moving the `vX` alias consumers pin. `pyproject.toml` is the version's
+source of record; `shipyard release` writes the same version into
+`plugin/plugin.yml` and regenerates its `plugin.json`. Load it with
+`claude --plugin-dir plugin` or a rig pin; it isn't listed in a marketplace.
 
 ## Commands
 
@@ -53,6 +61,8 @@ src/shipyard/links.py     docsify's routing and heading-slug rules, for the link
 src/shipyard/validate.py  the gate over `claude plugin validate`: read its report, apply plugin.yml's acceptances
 src/shipyard/cut.py       the local release driver: preflight, draft, preview, ship
 src/shipyard/git.py       the git the driver needs, and nothing else
+src/shipyard/onboarding.py  `onboarding`: what a plugin still needs before its aggregator ships it
+plugin/                   the bundled Claude Code plugin and its skills
 tests/                    pytest suites
 docs/                     shipyard's own docsify site, published by pages.yml
 docs/cli-manifest.v1.json the CLI manifest's schema — published, so a consumer

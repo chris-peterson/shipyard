@@ -55,9 +55,9 @@ def next_version(current: str, level: str) -> str:
 def read_pyproject(root: str | pathlib.Path | None = None) -> str:
     """shipyard's own recorded version.
 
-    shipyard is not a plugin, so it has no `plugin.yml` to carry this; its
-    `pyproject.toml` is the equivalent manifest at the repo root, and the release
-    bumps it there for the same reason."""
+    shipyard has no `plugin.yml` at its root to carry this; its `pyproject.toml`
+    is the equivalent manifest there, and the release bumps it for the same
+    reason."""
     path = pathlib.Path(root or ".") / "pyproject.toml"
     m = _PYPROJECT_VERSION.search(path.read_text())
     if not m:
