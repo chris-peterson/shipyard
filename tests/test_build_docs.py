@@ -578,6 +578,31 @@ def test_a_skills_own_references_travel_with_it(plugin):
         root / "docs" / "skills" / "note.md").read_text()
 
 
+def test_a_sources_link_to_a_hand_written_page_resolves_on_the_site(plugin):
+    """fathom's spec links its principles page the way a checkout reader follows
+    it, and the page is kept by hand in docs/ rather than rendered."""
+    root, write = plugin
+    write("docs/principles.md", "# principles\n\n## Views\n")
+    write("SPEC.md", "Why: [principles](docs/principles.md), [views](docs/principles.md#views).\n")
+    write("skills/thing/SKILL.md", "See [principles](../../docs/principles.md).\n")
+    write("docs/README.md", "# demo")
+
+    assert build_docs.run(root) == 0
+
+    assert "[principles](/principles), [views](/principles?id=views)" in (
+        root / "docs" / "spec.md").read_text()
+    assert "[principles](/principles)" in (root / "docs" / "skills" / "thing.md").read_text()
+
+
+def test_a_sources_link_to_a_missing_hand_written_page_still_fails(plugin):
+    root, write = plugin
+    write("SPEC.md", "Why: [principles](docs/principles.md).\n")
+    write("docs/README.md", "# demo")
+
+    with pytest.raises(SystemExit, match=r"docs/principles\.md"):
+        build_docs.run(root)
+
+
 def test_a_link_to_a_page_the_build_does_not_publish_fails_the_build(plugin):
     """The failure mode this check exists for: docsify renders its own 404 inside
     a page that loaded fine, so the deploy is green and only a reader finds out."""

@@ -735,8 +735,16 @@ def _rewrite_links(docs: pathlib.Path,
     """Point each rendered page's links at the routes the site serves, now that
     every source's destination is known. Only pages that came from a source are
     touched: a hand-written page under docs/ was written against the site and
-    already says `/skills/thing`."""
+    already says `/skills/thing`.
+
+    A hand-written page is still a link target. It is published where it sits, so
+    a source's checkout link to it (`SPEC.md` -> `docs/guide.md`) maps to its route
+    like any rendered page's."""
     routes = {source: links.route_of(docs, page) for source, page in rendered}
+    written = {page for _, page in rendered}
+    for page in docs.rglob("*.md"):
+        if page not in written:
+            routes.setdefault(page.relative_to(docs.parent).as_posix(), links.route_of(docs, page))
     for source, page in rendered:
         text = page.read_text()
         rewritten = links.rewrite(text, source, routes)

@@ -34,6 +34,13 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
   `validate` reports and counts those findings the way it does advice, rather
   than failing on them as warnings.
 
+### Fixed
+
+- **A source's link to a hand-written docs page resolves on the site.** A
+  `SPEC.md` or skill linking a page you keep under `docs/` (`docs/guide.md`,
+  the path a checkout reader follows) is rewritten to that page's route, where
+  `build-docs` used to leave it as written and fail the link check on it.
+
 ## 2.10.0
 
 ### Added
