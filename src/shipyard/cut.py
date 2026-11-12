@@ -57,8 +57,10 @@ class Refused(SystemExit):
 # shipyard ships its own Claude Code plugin from this subdirectory. It sits
 # below the root so a root plugin.yml never makes shipyard read as a plugin to
 # `_manifest`, which would stop the release moving the `vX` alias consumers pin.
-# pyproject.toml stays the version's source of record; the release writes the
-# same version into the bundled plugin.
+# The plugin versions on its own line, in its own plugin.yml: the build tooling's
+# 2.x says nothing about what the plugin's skills and CLI verbs can do, so the
+# release leaves that version alone and only re-projects its plugin.json, so an
+# edit to the plugin's plugin.yml reaches the manifest by the next release.
 BUNDLED_PLUGIN = "plugin"
 
 def _manifest(root: pathlib.Path):
@@ -313,11 +315,8 @@ def _ship(plan: Plan, *, bump: str | None, yes: bool, remote: str) -> int:
         touched.append(".claude-plugin/plugin.json")
     elif (plan.root / BUNDLED_PLUGIN / "plugin.yml").exists():
         from . import gen_plugin_json
-        bundled = plan.root / BUNDLED_PLUGIN
-        version.write_plugin_yml(nxt, bundled)
-        gen_plugin_json.run(bundled)
-        touched += [f"{BUNDLED_PLUGIN}/plugin.yml",
-                    f"{BUNDLED_PLUGIN}/.claude-plugin/plugin.json"]
+        gen_plugin_json.run(plan.root / BUNDLED_PLUGIN)
+        touched.append(f"{BUNDLED_PLUGIN}/.claude-plugin/plugin.json")
 
     git.commit(plan.root, RELEASE_COMMIT.format(version=nxt), touched)
     git.tag(plan.root, tag)

@@ -19,7 +19,11 @@ the result to the branch, so a committed artifact matches its source at all time
 rather than only after a release, and the diff a reviewer approves is the change
 that lands.
 
-``validate`` is the one verb that reads rather than writes. It runs Claude Code's
+``list`` and ``completions`` are for a person at a prompt rather than CI:
+``list`` prints what a marketplace ships from its published catalog, and
+``completions zsh`` installs tab completion generated from this parser.
+
+``validate`` is the one CI verb that reads rather than writes. It runs Claude Code's
 own ``plugin validate`` over the checkout, so the ruleset stays the runtime's;
 ``actions/project`` runs it on what ``generate`` just wrote, before the commit.
 """
@@ -85,9 +89,23 @@ def build_parser() -> argparse.ArgumentParser:
     add("gen-events-json", help="plugins' published and subscribed events → docs/events.json")
     add("gen-artifacts-json",
         help="the artifact log + the spokes' releases → docs/artifacts.json")
+    add("gen-catalog-json", help="the roster + plugins → docs/catalog.json, "
+                                 "the catalog `list` reads")
     add("generate", help="project source → artifacts")
     add("validate", help="run Claude Code's own plugin validator over the "
                          "checkout; warnings fail unless the manifest accepts them")
+
+    from .listing import DEFAULT_URL, TYPES
+    lst = add("list", help="what bridge.ai ships: the marketplace and its plugins, "
+                           "from the live catalog (or --root's checkout)")
+    lst.add_argument("--json", action="store_true", help="print the entries as JSON")
+    lst.add_argument("--type", choices=TYPES, help="only entries of this type")
+    lst.add_argument("--url", default=None,
+                     help=f"the catalog to read (default: {DEFAULT_URL})")
+    comp = sub.add_parser("completions", help="install zsh tab completion for shipyard")
+    comp.add_argument("shell", choices=["zsh"], help="the shell to complete in")
+    comp.add_argument("--print", action="store_true", dest="print_only",
+                      help="write the script to stdout instead of installing it")
     return parser
 
 
@@ -98,10 +116,11 @@ def _generate_aggregate(root: str | None) -> int:
     The growth view is the one piece an aggregator opts into, by declaring the
     artifact log it keeps — a catalog with no such log has no history to plot."""
     from ._aggregate import load_manifest
-    from . import (gen_artifacts_json, gen_deps_json, gen_events_json,
-                   gen_marketplace_json, gen_plugins_js)
+    from . import (gen_artifacts_json, gen_catalog_json, gen_deps_json,
+                   gen_events_json, gen_marketplace_json, gen_plugins_js)
     gen_marketplace_json.run(root)
     gen_plugins_js.run(root)
+    gen_catalog_json.run(root)
     gen_deps_json.run(root)
     gen_events_json.run(root)
     if load_manifest(root).get("artifacts"):
@@ -111,7 +130,14 @@ def _generate_aggregate(root: str | None) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "completions":
+        from . import completions
+        return completions.run(args.shell, print_only=args.print_only)
     root = args.root
+
+    if args.command == "list":
+        from . import listing
+        return listing.run(root, url=args.url, as_json=args.json, type_=args.type)
 
     if args.command == "gen-plugin-json":
         from . import gen_plugin_json
@@ -153,6 +179,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "gen-artifacts-json":
         from . import gen_artifacts_json
         return gen_artifacts_json.run(root)
+    if args.command == "gen-catalog-json":
+        from . import gen_catalog_json
+        return gen_catalog_json.run(root)
     if args.command == "gen-plugins-js":
         from . import gen_plugins_js
         return gen_plugins_js.run(root)

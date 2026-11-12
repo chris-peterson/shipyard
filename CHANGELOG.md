@@ -10,6 +10,32 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Added
+
+- **`shipyard list` shows what bridge.ai ships.** One row for the marketplace
+  and one per plugin, with its type, category, version, contents (skills,
+  rules, hooks, commands, and whether it has a CLI), and description. It reads
+  the live site's catalog by default; `--json` prints every field, `--type
+  plugin` narrows it, and `--root <marketplace checkout>` reads a checkout that
+  hasn't deployed yet. The bundled plugin's `/shipyard:list` skill runs it.
+- **`gen-catalog-json` publishes that catalog.** An aggregator's `generate`
+  now writes `docs/catalog.json`, a versioned, machine-readable form of what
+  the doc site shows. A marketplace whose deploy calls the projectors one by
+  one adds `shipyard gen-catalog-json` beside `gen-plugins-js`. An optional
+  `title:` in `plugins.yml` names the catalog (bridge.ai); it falls back to
+  `name:`.
+- **zsh tab completion.** `shipyard completions zsh` installs it, and plugin
+  names complete from the roster. The script is generated from shipyard's own
+  parser, so a new command completes as soon as it exists.
+
+### Changed
+
+- **The bundled plugin has its own version, starting at 0.1.0.** A release no
+  longer copies shipyard's version into `plugin/plugin.yml`. It still
+  regenerates the plugin's `plugin.json`.
+
 ## 2.12.0
 
 ### Added

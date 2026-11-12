@@ -14,13 +14,22 @@ the plugin checkout). Root is never derived from shipyard's own file location;
 the per-plugin scripts it replaced did that, and it's the mistake to avoid
 re-introducing.
 
-It also bundles a Claude Code plugin in `plugin/` (`/shipyard:add-plugin`), for
-work a person does across repos rather than CI does in one. The plugin sits below
-the root so the repo itself never reads as a plugin to the release, which would
-stop it moving the `vX` alias consumers pin. `pyproject.toml` is the version's
-source of record; `shipyard release` writes the same version into
-`plugin/plugin.yml` and regenerates its `plugin.json`. Load it with
-`claude --plugin-dir plugin` or a rig pin; it isn't listed in a marketplace.
+It also bundles a Claude Code plugin in `plugin/` (`/shipyard:list`,
+`/shipyard:add-plugin`), for work a person does across repos rather than CI does
+in one. The plugin sits below the root so the repo itself never reads as a plugin
+to the release, which would stop it moving the `vX` alias consumers pin. The
+plugin versions on its own line in `plugin/plugin.yml` (it started at 0.1.0),
+separate from the build tooling's `pyproject.toml`: bump it by hand when the
+plugin's skills or the CLI verbs they drive change. `shipyard release` leaves
+that version alone and regenerates `plugin/.claude-plugin/plugin.json` from it.
+Load it with `claude --plugin-dir plugin` or a rig pin; it isn't listed in a
+marketplace.
+
+Two verbs are for a person at a prompt rather than CI: `list` reads bridge.ai's
+published `catalog.json` (or builds it from `--root`), and `completions zsh`
+installs tab completion generated from `cli.build_parser()`, so a new verb or
+flag completes the moment it is declared; `tests/test_completions.py` holds the
+two equal.
 
 ## Commands
 
@@ -63,6 +72,8 @@ src/shipyard/_aggregate.py  the roster, the groups, and the artifact log a catal
 src/shipyard/changelog.py   CHANGELOG.md as the release's source of record, read and written
 src/shipyard/build_docs.py  renders skills/rules/guides/templates/references/SPEC.md/STATUS.md into docs/
 src/shipyard/links.py     docsify's routing and heading-slug rules, for the link rewrite and the link check
+src/shipyard/listing.py   `list`: the published catalog, as a table or --json
+src/shipyard/completions.py  zsh completion, generated from the parser, and its install
 src/shipyard/validate.py  the gate over `claude plugin validate`: read its report, apply plugin.yml's acceptances
 src/shipyard/cut.py       the local release driver: preflight, draft, preview, ship
 src/shipyard/git.py       the git the driver needs, and nothing else

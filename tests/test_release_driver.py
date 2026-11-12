@@ -425,28 +425,33 @@ def test_the_major_alias_follows_the_newest_release_on_its_line(tooling_repo):
     assert git.run(upstream, "rev-parse", "v2") == git.run(upstream, "rev-parse", "v2.2.0")
 
 
-def test_the_bundled_plugin_carries_the_released_version(tooling_repo):
-    """shipyard ships a plugin from `plugin/`. pyproject.toml stays the source of
-    record, so the release writes the same version into the bundled plugin, and
-    the alias still moves: a root plugin.yml would have made this a plugin."""
+def test_the_bundled_plugin_keeps_its_own_version(tooling_repo):
+    """shipyard ships a plugin from `plugin/`, versioned on its own line. The
+    release leaves that version alone, re-projects the plugin's plugin.json from
+    its plugin.yml, and still moves the alias: a root plugin.yml would have made
+    this a plugin."""
     from shipyard import gen_plugin_json
     bundled = tooling_repo / cut.BUNDLED_PLUGIN
     bundled.mkdir()
     (bundled / "plugin.yml").write_text(
-        "name: tooling\nversion: 2.1.0\ndescription: Bundled skills.\n")
+        "name: tooling\nversion: 0.1.0\ndescription: Bundled skills.\n")
     gen_plugin_json.run(bundled)
     _run(tooling_repo, "add", "-A")
     _run(tooling_repo, "commit", "--quiet", "-m", "Bundle a plugin")
     _run(tooling_repo, "push", "--quiet")
+    (bundled / "plugin.yml").write_text(
+        "name: tooling\nversion: 0.2.0\ndescription: Bundled skills, reworded.\n")
+    _run(tooling_repo, "commit", "--quiet", "-am", "Reword the plugin")
     _land(tooling_repo, "A change")
     _write_notes(tooling_repo, "### Added\n\n- A thing")
 
     assert cut.run(tooling_repo, yes=True) == 0
 
     upstream = tooling_repo.parent / "up.git"
-    assert "version: 2.2.0" in git.run(upstream, "show", "v2.2.0:plugin/plugin.yml")
+    assert "version: 0.2.0" in git.run(upstream, "show", "v2.2.0:plugin/plugin.yml")
     manifest = json.loads(git.run(upstream, "show", "v2.2.0:plugin/.claude-plugin/plugin.json"))
-    assert manifest["version"] == "2.2.0"
+    assert manifest["version"] == "0.2.0"
+    assert manifest["description"] == "Bundled skills, reworded."
     assert git.run(upstream, "rev-parse", "v2") == git.run(upstream, "rev-parse", "v2.2.0")
 
 

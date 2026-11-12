@@ -26,6 +26,11 @@ onboarding +names: _venv
 dispatch-secret *names: _venv
     @{{shipyard}} dispatch-secret {{names}}
 
+# What bridge.ai ships, from the live catalog: just list --json
+[group('marketplace')]
+list *args: _venv
+    @{{shipyard}} list {{args}}
+
 # The plugins the marketplace lists, by name and repo
 [group('marketplace')]
 roster root='../claude-marketplace': _venv

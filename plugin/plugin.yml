@@ -1,14 +1,15 @@
-# The Claude Code plugin shipyard bundles. pyproject.toml is the version's
-# source of record: `shipyard release` writes the same version here and
-# regenerates .claude-plugin/plugin.json.
+# The Claude Code plugin shipyard bundles. It versions on its own line, separate
+# from the build tooling's (pyproject.toml): bump `version:` here when the
+# plugin's skills or the CLI verbs they drive change. `shipyard release`
+# regenerates .claude-plugin/plugin.json from this file.
 
 name: shipyard
-version: 2.12.0
-description: "Skills for maintaining a marketplace of Claude Code plugins built with shipyard: onboard a plugin and see what it still lacks."
+version: 0.1.0
+description: "Skills for a marketplace of Claude Code plugins built with shipyard: list what bridge.ai ships, onboard a plugin, and see what it still lacks."
 author: chris-peterson
 repository: https://github.com/chris-peterson/shipyard
 license: MIT
-keywords: [plugins, marketplace, onboarding, claude-code]
+keywords: [plugins, marketplace, catalog, onboarding, claude-code]
 
 marketplace:
   homepage: https://chris-peterson.github.io/shipyard/#/

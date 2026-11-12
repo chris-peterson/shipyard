@@ -50,10 +50,22 @@ A marketplace or catalog site is the other kind of target. It declares a `plugin
 | `shipyard gen-deps-json` | the plugins' `suite.dependencies` → `docs/deps.json` |
 | `shipyard gen-events-json` | the plugins' published and subscribed events → `docs/events.json` |
 | `shipyard gen-artifacts-json` | the artifact log + the plugins' releases → `docs/artifacts.json` |
+| `shipyard gen-catalog-json` | the roster + the plugins' `plugin.yml` + the artifact log → `docs/catalog.json`, the catalog `shipyard list` reads |
 
 A plugin can also declare who it reaches and what it needs: a `relevance:` block under `marketplace:`, which asks Claude Code to suggest it to sessions whose work matches, and a top-level `dependencies:` list of plugins to install alongside it. Claude Code reads both and reports on neither, so shipyard rejects the shapes it would load and ignore — see [Suggestions and dependencies](suggestions-and-dependencies.md).
 
 `generate` dispatches on the manifest at `--root`, so one verb covers both kinds of target.
+
+### At a prompt
+
+Two commands are for a person rather than CI:
+
+| Command | What it does |
+|---|---|
+| `shipyard list` | what bridge.ai ships: the marketplace and each plugin's type, category, version, contents (skills, rules, hooks, commands, CLI), and description, read from the live site's `catalog.json`. `--json` for every field, `--type plugin` to narrow, `--root <marketplace checkout>` to read one that hasn't deployed. |
+| `shipyard completions zsh` | installs tab completion to `~/.zsh/completions/_shipyard` and wires `~/.zshrc` (`--print` writes the script to stdout instead). The script is generated from shipyard's own parser, and plugin names complete from the roster. |
+
+To get `shipyard` on your PATH: `uv tool install 'git+https://github.com/chris-peterson/shipyard@v2'`, then `shipyard completions zsh`.
 
 ## How a plugin uses it
 

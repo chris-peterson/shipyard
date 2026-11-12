@@ -165,6 +165,7 @@ flowchart LR
 - **`gen-plugins-js`** and **`gen-deps-json`** — the doc site's catalog data and dependency graph, projected from the plugins' `suite:` blocks. Render targets, regenerated on every docs build.
 - **`gen-events-json`** — the interop event catalog: each published key paired with the plugins subscribing to it, from both sides' `events:` blocks. The pairing is what shows a key with only one end — `subscribed_only` names a defect, `published_only` usually a rollout mid-flight.
 - **`gen-artifacts-json`** — the growth view: the artifact log bucketed into weeks, one entry per dated change point, and every release the plugins have tagged. An aggregator opts in by declaring the log; one without it has no history to plot.
+- **`gen-catalog-json`** — the same catalog for a program to read: one flat list of typed entries (the marketplace, then each plugin's category, version, description, CLI flag, and components from the artifact log), versioned by `schema`. `shipyard list` reads it from the live site. A render target, regenerated on every docs build.
 - **`roster`** — prints the declared plugins as `name<TAB>url` pairs. `--include-retired` adds the plugins the groups have retired, which the growth view still reads.
 
 Two design points carry most of the weight:
