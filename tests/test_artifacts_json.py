@@ -287,12 +287,42 @@ class TestTeaser:
         assert not item.endswith(" …")
 
     def test_an_identifiers_underscores_survive(self):
-        # sweeping ``[`*_]+`` as one class turned `created_at` into `createdat`,
+        # sweeping ``[`*_]+`` as one class turned created_at into createdat,
         # which names nothing a reader could search the repo for
         sm = changelog.teaser(
-            "- A route's `created_at` can no longer postdate _its own_ work.\n")
+            "- A route's created_at can no longer postdate _its own_ work.\n")
         assert sm["buckets"][0]["items"] == \
             ["A route's created_at can no longer postdate its own work"]
+
+    def test_a_code_span_keeps_its_backticks_and_its_contents(self):
+        # the listing renders it as code; inside it, nothing is emphasis
+        sm = changelog.teaser(
+            "- **`/anchor:commit` reads `__init__.py`** and *more*.\n")
+        assert sm["buckets"][0]["items"] == \
+            ["`/anchor:commit` reads `__init__.py`"]
+
+    def test_a_clip_inside_a_code_span_ends_before_it(self):
+        # a stub like `/mai` names nothing a reader could type
+        sm = changelog.teaser("- " + "word " * 17 + "and `" + "x" * 40 + "`\n")
+        (item,) = sm["buckets"][0]["items"]
+        assert len(item) <= changelog.TEASER_CHARS
+        assert item == ("word " * 17).strip() + " and\u2026"
+
+    def test_a_wrapped_bullet_is_read_whole(self):
+        # reading only its first line cut rig 0.1.0's headline off at "and"
+        sm = changelog.teaser(
+            "- `claude` launches the base rig, and\n"
+            "  `rig use web` the rigs you name. More detail.\n"
+            "  - a nested detail\n"
+            "- **Bold that\n  wraps.** Body.\n")
+        assert sm["buckets"][0]["items"] == [
+            "`claude` launches the base rig, and `rig use web` the rigs you name",
+            "Bold that wraps"]
+
+    def test_a_wrapped_alert_is_read_whole(self):
+        sm = changelog.teaser(
+            "> [!IMPORTANT]\n> Upgrade the hook\n> before the plugin. Then x.\n>\n> Later.\n")
+        assert sm["alert"] == "Upgrade the hook before the plugin"
 
     def test_a_bucket_with_no_bullets_falls_back_to_its_paragraph(self):
         # some sections are a heading naming the change and prose explaining it
@@ -300,9 +330,9 @@ class TestTeaser:
             "### `serve` refuses an opaque origin\n\n"
             "2.9.0's origin gate read a literal `Origin: null` as a missing header.\n")
         (bucket,) = sm["buckets"]
-        assert bucket["title"] == "serve refuses an opaque origin"
+        assert bucket["title"] == "`serve` refuses an opaque origin"
         assert bucket["items"] == \
-            ["2.9.0's origin gate read a literal Origin: null as a missing header"]
+            ["2.9.0's origin gate read a literal `Origin: null` as a missing header"]
 
     def test_bullets_win_over_the_paragraph_introducing_them(self):
         sm = changelog.teaser("### Changed\n\nThese landed:\n\n- **One.** x\n")

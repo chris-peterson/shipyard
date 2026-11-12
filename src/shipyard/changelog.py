@@ -188,17 +188,26 @@ _HEADING = re.compile(r"^#{1,6}\s+(.+)$")
 _LEAD_IN = re.compile(r"\s*\*\*(.+?)\*\*")
 
 
-def _plain(text: str) -> str:
-    """Markdown inline spans flattened to the text they mark up.
+_CODE = re.compile(r"(`[^`]+`)")
 
-    An underscore is only emphasis at a word boundary. `created_at` carries its
+
+def _plain(text: str) -> str:
+    """Markdown inline spans flattened to the text they mark up, but for code.
+
+    A code span keeps its backticks: `/anchor:commit` and `diff.tool` are names
+    a reader types, and the listing renders them as code. Inside one nothing is
+    markup, so the flattening runs only between them.
+
+    An underscore is only emphasis at a word boundary. created_at carries its
     own, and stripping that leaves a word naming nothing the reader can search
     the repo for.
     """
     text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
-    text = re.sub(r"[`*]+", "", text)
-    text = re.sub(r"(?<![\w_])_{1,2}(?=\S)|(?<=\S)_{1,2}(?![\w_])", "", text)
-    return re.sub(r"\s+", " ", text).strip()
+    parts = _CODE.split(text)
+    for i in range(0, len(parts), 2):
+        prose = re.sub(r"[`*]+", "", parts[i])
+        parts[i] = re.sub(r"(?<![\w_])_{1,2}(?=\S)|(?<=\S)_{1,2}(?![\w_])", "", prose)
+    return re.sub(r"\s+", " ", "".join(parts)).strip()
 
 
 def _headline(text: str) -> str:
@@ -208,7 +217,12 @@ def _headline(text: str) -> str:
     head = head.rstrip(" .:-")
     if len(head) <= TEASER_CHARS:
         return head
-    return head[:TEASER_CHARS - 1].rstrip() + "\u2026"
+    clipped = head[:TEASER_CHARS - 1].rstrip()
+    if clipped.count("`") % 2:
+        # the clip landed inside a code span: a stub like `/mai` names nothing,
+        # so the line ends before the span instead
+        clipped = clipped[:clipped.rindex("`")].rstrip(" ,;:-") or clipped + "`"
+    return clipped + "\u2026"
 
 
 def teaser(body: str) -> dict:
@@ -223,6 +237,9 @@ def teaser(body: str) -> dict:
     """
     alert, buckets, fenced = "", [], False
     cur: dict | None = None
+    # what the next non-blank line continues: a bullet or paragraph wraps
+    # across lines, and its headline is read from the whole of it
+    open_: str | None = None
 
     def bucket(title: str = "") -> dict:
         buckets.append(fresh := {"title": title, "items": [], "para": ""})
@@ -231,29 +248,45 @@ def teaser(body: str) -> dict:
     for raw in (body or "").replace("\r\n", "\n").split("\n"):
         line = raw.rstrip()
         if line.lstrip().startswith("```"):
-            fenced = not fenced
+            fenced, open_ = not fenced, None
             continue
         if fenced:
             continue
         if line.startswith(">"):
             quoted = line.lstrip("> ").strip()
-            if quoted and not _ALERT.match(quoted) and not alert:
-                alert = _headline(quoted)
+            if not quoted or quoted.startswith("```"):
+                open_ = None
+            elif _ALERT.match(quoted):
+                pass
+            elif not alert:
+                alert, open_ = quoted, "alert"
+            elif open_ == "alert":
+                alert += " " + quoted
             continue
         if heading := _HEADING.match(line):
-            cur = bucket(_plain(heading.group(1)))
+            cur, open_ = bucket(_plain(heading.group(1))), None
             continue
         if not line.strip():
+            open_ = None
             continue
         cur = cur or bucket()
         if bullet := _BULLET.match(line):
-            cur["items"].append(_headline(bullet.group(1)))
+            cur["items"].append(bullet.group(1))
+            open_ = "item"
+        elif _BULLET.match(line.lstrip()):
+            open_ = None  # a nested bullet is detail, not the headline
+        elif open_ == "item":
+            cur["items"][-1] += " " + line.strip()
+        elif open_ == "para":
+            cur["para"] += " " + line.strip()
         elif not cur["items"] and not cur["para"]:
-            cur["para"] = _headline(line)
+            cur["para"], open_ = line.strip(), "para"
 
+    alert = _headline(alert) if alert else ""
     kept = []
     for b in buckets:
-        items = b["items"][:TEASER_ITEMS] or ([b["para"]] if b["para"] else [])
+        heads = [_headline(i) for i in b["items"]]
+        items = heads[:TEASER_ITEMS] or ([_headline(b["para"])] if b["para"] else [])
         if not items:
             continue
         entry = {"title": b["title"], "items": items}
