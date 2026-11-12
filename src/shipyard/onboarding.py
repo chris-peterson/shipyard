@@ -128,8 +128,8 @@ def checks(name: str, root: pathlib.Path) -> list[Check]:
          f"gh api -X POST repos/{repo}/pages -f build_type=workflow "
          "(before the first push, or that push's docs deploy fails)"),
         (f"{SECRET} secret", SECRET in secrets,
-         f"set {SECRET} on {repo} from your own terminal; the value is a PAT, so it "
-         "never goes through a session"),
+         f"run `shipyard dispatch-secret {name}` in your own terminal; it prompts "
+         "for the PAT, so the value never goes through a session"),
         (f"on {MANIFEST}", name in (manifest.get("plugins") or []),
          f"add `- {name}` to {MANIFEST} `plugins:` at its catalog position"),
         ("README section", readme.exists() and f"### [{name}](" in readme.read_text(),

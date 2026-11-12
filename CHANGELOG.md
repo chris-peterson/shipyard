@@ -21,6 +21,15 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
   `hub:` key, and a release. Each gap prints with its fix. It finds the
   marketplace from `--root`, the current directory, or the one sibling checkout
   holding `plugins.yml`, so it runs from inside a plugin checkout too.
+- **`shipyard dispatch-secret [<name> ...]`** sets the marketplace dispatch
+  token on every plugin on the roster, or the ones named. The token comes from
+  `$MARKETPLACE_DISPATCH_TOKEN` or a silent prompt, reaches `gh` on stdin, and is
+  checked first: it must authenticate and be able to dispatch to the
+  marketplace, or nothing is written.
+- **A justfile is shipyard's front door.** Bare `just` lists the marketplace
+  chores (`onboarding`, `dispatch-secret`, `roster`), the reads against a plugin
+  checkout, and shipyard's own tests, docs, and release, each running this
+  checkout's shipyard from a `.venv` the first recipe creates.
 - **shipyard bundles a Claude Code plugin** in `plugin/`, whose
   `/shipyard:add-plugin` skill walks a plugin through those gaps. Load it with
   `claude --plugin-dir plugin` or a rig pin. The release writes shipyard's

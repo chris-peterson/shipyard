@@ -24,6 +24,11 @@ source of record; `shipyard release` writes the same version into
 
 ## Commands
 
+`just` lists the recipes: the marketplace chores (`onboarding`,
+`dispatch-secret`, `roster`), the reads against a plugin checkout, and
+shipyard's own tests, docs, and release. They run this checkout's shipyard from
+`.venv`, which the first recipe to need it creates. Underneath:
+
 ```bash
 pip install -e ".[dev]"
 pytest
@@ -62,6 +67,7 @@ src/shipyard/validate.py  the gate over `claude plugin validate`: read its repor
 src/shipyard/cut.py       the local release driver: preflight, draft, preview, ship
 src/shipyard/git.py       the git the driver needs, and nothing else
 src/shipyard/onboarding.py  `onboarding`: what a plugin still needs before its aggregator ships it
+src/shipyard/dispatch_secret.py  `dispatch-secret`: the marketplace dispatch token, set on the plugin repos
 plugin/                   the bundled Claude Code plugin and its skills
 tests/                    pytest suites
 docs/                     shipyard's own docsify site, published by pages.yml

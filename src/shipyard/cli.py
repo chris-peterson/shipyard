@@ -76,6 +76,9 @@ def build_parser() -> argparse.ArgumentParser:
     onb = add("onboarding", help="what a plugin still needs before the aggregator "
                                  "ships it, with the fix for each gap")
     onb.add_argument("names", nargs="+", help="the plugins to check")
+    dsp = add("dispatch-secret", help="set the marketplace dispatch token on the "
+                                      "plugin repos (every plugin, or those named)")
+    dsp.add_argument("names", nargs="*", help="the plugins to set it on (default: all)")
     add("gen-marketplace-json", help="plugins.yml + plugins → .claude-plugin/marketplace.json")
     add("gen-plugins-js", help="plugins' suite: blocks → docs/plugins.js")
     add("gen-deps-json", help="plugins' declared dependencies → docs/deps.json")
@@ -141,6 +144,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "onboarding":
         from . import onboarding
         return onboarding.run(args.names, root)
+    if args.command == "dispatch-secret":
+        from . import dispatch_secret
+        return dispatch_secret.main(args.names, root)
     if args.command == "gen-marketplace-json":
         from . import gen_marketplace_json
         return gen_marketplace_json.run(root)

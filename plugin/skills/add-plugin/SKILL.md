@@ -33,11 +33,11 @@ and push only through `/anchor:commit` when the user asks.
 | marketplace block | plugin repo `plugin.yml` | `marketplace:` with `category:` (one the marketplace already uses, unless the plugin needs a new one) and `homepage:` its docs site, placed after `validate:` |
 | repo homepage | GitHub | the `gh repo edit` the fix line prints |
 | Pages from Actions | GitHub | the `gh api` the fix line prints, before the first push to `main`: the docs deploy that push starts fails with "Get Pages site failed" until Pages exists |
-| dispatch secret | GitHub | the user sets it from their own terminal (the bridge.ai marketplace has `just set-dispatch-secret <name>`): the value is a PAT, so it never passes through the session |
+| dispatch secret | GitHub | the user runs `shipyard dispatch-secret <name>` in their own terminal: it prompts silently for the PAT, checks it can dispatch to the marketplace, then sets it, so the value never passes through the session |
 | on plugins.yml | marketplace `plugins.yml` | add the name next to the other plugins of its group; the list order is the catalog order |
 | README section | marketplace `README.md` | sections follow the catalog: group order, then list order. Heading `### [<name>](<homepage>) — <group tag, lowercase>`, body from the plugin's `suite.what`, verified against its `skills/*/SKILL.md` |
 | hub entry | the file `hub:` names | an entry in list order: `description` is `suite.gloss`, `icon` the plugin's `favicon.svg`, `languages` from `gh api repos/<owner>/<name>/languages` (mark mostly-Markdown repos `source: manual`) |
-| released | plugin repo | a release needs `CHANGELOG.md`'s `## Unreleased` written and the dispatch secret set; hand off to `/anchor:release` |
+| released | plugin repo | a release needs `CHANGELOG.md`'s `## Unreleased` written and the dispatch secret set; hand off to `/anchor:release` with a minor bump. A new plugin's `plugin.yml` starts at `version: 0.0.1`, never `0.0.0`, so that first release makes it 0.1.0 |
 
 The release is last because its workflow dispatches to the marketplace with the
 secret, and the catalog rebuild it triggers only lists plugins on `plugins.yml`.
