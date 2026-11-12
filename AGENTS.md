@@ -69,6 +69,8 @@ src/shipyard/git.py       the git the driver needs, and nothing else
 src/shipyard/onboarding.py  `onboarding`: what a plugin still needs before its aggregator ships it
 src/shipyard/dispatch_secret.py  `dispatch-secret`: the marketplace dispatch token, set on the plugin repos
 plugin/                   the bundled Claude Code plugin and its skills
+templates/                files a plugin copies in rather than calls, such as
+                          execute-quietly.md for a skill that narrates its steps
 tests/                    pytest suites
 docs/                     shipyard's own docsify site, published by pages.yml
 docs/cli-manifest.v1.json the CLI manifest's schema — published, so a consumer

@@ -10,6 +10,16 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Added
+
+- **A template for skills that narrate their own steps.**
+  `templates/execute-quietly.md` is a guide a plugin copies in and links from
+  its skills: run the steps, lead with the bottom line (BLUF), show the result
+  and the drafted artifact, and fold deterministic steps into one script call so
+  there is less to narrate.
+
 ## 2.11.0
 
 ### Added
