@@ -1,6 +1,6 @@
 {
   "name": "shipyard",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "description": "Skills for maintaining a marketplace of Claude Code plugins built with shipyard: onboard a plugin and see what it still lacks.",
   "author": {
     "name": "chris-peterson"
