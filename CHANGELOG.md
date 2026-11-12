@@ -10,7 +10,7 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
-## Unreleased
+## 2.12.0
 
 ### Added
 
@@ -19,6 +19,21 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
   its skills: run the steps, lead with the bottom line (BLUF), show the result
   and the drafted artifact, and fold deterministic steps into one script call so
   there is less to narrate.
+
+### Changed
+
+- **A release teaser keeps its code spans.** `gen-artifacts-json` used to strip
+  every backtick from the headlines it lifts out of a release's notes, so
+  `/anchor:commit` and `diff.tool` reached a catalog as bare prose. They keep
+  their backticks now, and a headline that would be clipped mid-span ends
+  before the span instead. A consumer that shows a teaser as plain text will
+  show the backticks; render them as code.
+
+### Fixed
+
+- **A teaser reads a wrapped bullet whole.** A bullet, paragraph, or alert
+  that wrapped onto a second line was read from its first line alone, so a
+  headline could end mid-sentence (rig 0.1.0's ended at "and").
 
 ## 2.11.0
 

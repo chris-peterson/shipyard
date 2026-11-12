@@ -3,7 +3,7 @@
 # regenerates .claude-plugin/plugin.json.
 
 name: shipyard
-version: 2.11.0
+version: 2.12.0
 description: "Skills for maintaining a marketplace of Claude Code plugins built with shipyard: onboard a plugin and see what it still lacks."
 author: chris-peterson
 repository: https://github.com/chris-peterson/shipyard
