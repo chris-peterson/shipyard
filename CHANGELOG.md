@@ -10,6 +10,16 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Fixed
+
+- **Docs deploys no longer fail on a missing or duplicate `github-pages`
+  artifact.** `deploy-docs.yml` builds and deploys in separate jobs, retries the
+  deploy once when the artifact isn't listed yet, and names the artifact for the
+  run attempt, so re-running a failed deploy works instead of finding two
+  artifacts. A release whose docs job went red can now be fixed with a re-run.
+
 ## 2.13.0
 
 ### Added

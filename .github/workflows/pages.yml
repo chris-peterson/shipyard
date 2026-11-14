@@ -2,7 +2,8 @@ name: Deploy docs
 
 # shipyard's own docs site — a static docsify site under docs/, published to
 # GitHub Pages. (Distinct from deploy-docs.yml, which is the reusable workflow
-# plugins call to build *their* docs.)
+# plugins call to build *their* docs.) Split into build and deploy, with a name
+# per attempt and one retry, for the reason deploy-docs.yml gives.
 
 on:
   push:
@@ -18,11 +19,11 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  ARTIFACT: github-pages-${{ github.run_attempt }}
+
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -30,5 +31,25 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
+          name: ${{ env.ARTIFACT }}
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+        continue-on-error: true
+        with:
+          artifact_name: ${{ env.ARTIFACT }}
+      - name: Wait for the artifact to be listed
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+      - id: retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: ${{ env.ARTIFACT }}
