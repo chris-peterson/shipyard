@@ -114,7 +114,21 @@ def _fields(declared: object) -> list[dict]:
 
 
 def run(root: str | pathlib.Path | None = None) -> int:
+    """Write the catalog, then fail on a subscription nothing publishes.
+
+    The file is written first, so a local build still renders the page that
+    names the defect. A published key nobody hears stays a warning on that page
+    and nothing more: the two ends ship from separate repos, and failing here
+    would break the first half of every two-repo rollout."""
     target = plugin_root(root) / "docs" / "events.json"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(build(root))
+    text = build(root)
+    target.write_text(text)
+    orphans = json.loads(text)["subscribed_only"]
+    if orphans:
+        lines = "\n".join(
+            f"  {o['subscriber']} subscribes to {o['key']}" for o in orphans)
+        raise SystemExit(
+            "shipyard gen-events-json: a subscription names a key no plugin "
+            f"publishes (a typo, or a publisher renamed out from under it):\n{lines}")
     return 0

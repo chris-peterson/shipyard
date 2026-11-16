@@ -122,9 +122,11 @@ def _generate_aggregate(root: str | None) -> int:
     gen_plugins_js.run(root)
     gen_catalog_json.run(root)
     gen_deps_json.run(root)
-    gen_events_json.run(root)
     if load_manifest(root).get("artifacts"):
         gen_artifacts_json.run(root)
+    # Last, because it is the one that fails on what it finds: a subscription
+    # nothing publishes. Everything else is written by then.
+    gen_events_json.run(root)
     return 0
 
 

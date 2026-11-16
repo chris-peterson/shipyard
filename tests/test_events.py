@@ -143,6 +143,22 @@ def test_a_subscription_to_nothing_is_reported(hub):
     }]
 
 
+def test_a_subscription_to_nothing_fails_the_build(hub):
+    # The contract's one hard gate. The catalog is still written, so the page
+    # that names the defect renders on a local build.
+    write_spokes(hub, {**PUBLISHER, "events": {}}, SUBSCRIBER)
+    with pytest.raises(SystemExit, match="tack subscribes to codes.bridgeai.anchor/cr.created"):
+        gen_events_json.run(hub)
+    written = json.loads((hub / "docs" / "events.json").read_text())
+    assert [o["key"] for o in written["subscribed_only"]] == ["codes.bridgeai.anchor/cr.created"]
+
+
+def test_a_published_key_nobody_hears_does_not_fail_the_build(hub):
+    # A rollout mid-flight: the publisher's half landed first.
+    write_spokes(hub, PUBLISHER, {**SUBSCRIBER, "events": {}})
+    assert gen_events_json.run(hub) == 0
+
+
 def test_a_subscriber_naming_a_stale_key_does_not_pair(hub):
     stale = {**SUBSCRIBER, "events": {"subscribes": [
         {"key": "codes.bridgeai.anchor/cr.opened", "handled_by": "x.sh"}]}}
