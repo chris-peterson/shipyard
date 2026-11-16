@@ -10,6 +10,18 @@ shipyard is pinned by ref, so a version here is a tag you can point `uses:` at.
 are live while the projection shape is piloted: `v1` is the workflow-only shape,
 `v2` is everything below.
 
+## Unreleased
+
+### Changed
+
+- **`gen-events-json` fails when a plugin subscribes to a key nothing
+  publishes.** The events contract always called this a build failure, but the
+  projection only listed it on the catalog page, so a typo or a renamed
+  publisher could sit there unnoticed. The catalog is still written before it
+  fails, so a local build renders the page naming the defect. A published key
+  nobody subscribes to stays a warning. `generate` on an aggregator now runs
+  this projection last, so the other data files are written either way.
+
 ## 2.13.1
 
 ### Fixed
