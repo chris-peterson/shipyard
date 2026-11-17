@@ -256,6 +256,8 @@ An **error** is never acceptable. An unknown field is a judgment call; a wrong-t
 
 **Advice** never gates. The validator prints it under `ℹ Advice (does not change the verdict):` and leaves its exit code alone, even with `--strict`; the README install line it suggests is one example. shipyard does the same: the advice stays in the printed report, and the pass line counts it. Advice can't be accepted, since there is nothing to excuse.
 
+**Inventory** never gates either, and isn't counted. Since Claude Code 2.1.326 the validator lists what the plugin provides under `Provides:` (one line per skill or hook), and notes how it ran the directory checks under `About these checks:` (such as the repository root a README was taken from). Neither says anything is wrong with the plugin.
+
 A finding under any other block header fails the gate, naming the header. Whether a finding gates depends on its block, and a block shipyard doesn't recognize is one it can't classify without guessing.
 
 Run the same check yourself the same way you'd run any other:

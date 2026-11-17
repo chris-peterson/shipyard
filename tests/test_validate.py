@@ -114,6 +114,60 @@ The directory also runs a safety scan and a policy review that this command does
 ✔ Validation passed with warnings
 """
 
+# Claude Code 2.1.326 lists what the plugin provides, and closes the directory
+# section's findings with a note on how it ran them. Captured from real runs:
+# a plugin with a hook and two skills, and one whose README came from the
+# repository root above it.
+PROVIDES = """\
+Validating plugin manifest: /repo/.claude-plugin/plugin.json
+
+Validating plugin: /repo/CLAUDE.md
+
+⚠ Found 1 warning:
+
+  ❯ root: CLAUDE.md at the plugin root is not loaded as project context. To ship context with your plugin, use a skill (skills/<name>/SKILL.md) instead.
+
+Provides:
+
+  ❯ hooks: PostToolUse Bash command "bash \\"${CLAUDE_PLUGIN_ROOT}/hooks/react.sh\\""
+  ❯ skills: mate:feature
+  ❯ skills: mate:fix
+
+Plugin directory checks for /repo. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.
+
+✔ These checks found nothing to report
+
+The directory also runs a safety scan and a policy review that this command does not.
+
+✔ Validation passed with warnings
+"""
+
+ABOUT_THESE_CHECKS = """\
+Validating plugin manifest: /repo/plugin/.claude-plugin/plugin.json
+
+Provides:
+
+  ❯ skills: shipyard:add-plugin
+  ❯ skills: shipyard:list
+
+Plugin directory checks for /repo/plugin. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.
+
+⚠ Found 1 plugin directory warning:
+
+  ❯ .claude-plugin/plugin.json icon: No icon (ICON_MISSING). No icon found in the plugin.
+    Fix: Add a square PNG to the plugin folder at .claude-plugin/icon.png.
+
+About these checks:
+
+  ❯ The repository root was taken to be /repo, the nearest parent folder with a .git folder or file. README.md was taken from it, because this plugin folder has none of its own. For a plugin submitted from a git repository, the repository root is the top folder of that repository, with only what is committed there, so check that the folder named above is that top folder.
+
+These plugin directory checks do not change the result below.
+
+The directory also runs a safety scan and a policy review that this command does not.
+
+✔ Validation passed
+"""
+
 ACCEPT_ROOT = """\
 name: demo
 validate:
@@ -201,6 +255,23 @@ def test_a_block_the_grammar_does_not_name_is_unread():
     assert kinds["/repo/README.md"] == validate.UNREAD
 
 
+def test_what_a_plugin_provides_is_inventory():
+    found = [(f.field, f.kind) for f in validate.parse(PROVIDES)]
+    assert found == [
+        ("root", validate.WARNING),
+        ("hooks", validate.INVENTORY),
+        ("skills", validate.INVENTORY),
+        ("skills", validate.INVENTORY),
+    ]
+
+
+def test_a_note_on_how_the_directory_checks_ran_is_inventory():
+    """It sits inside the directory section, but it's no directory finding."""
+    kinds = [f.kind for f in validate.parse(ABOUT_THESE_CHECKS)]
+    assert kinds == [validate.INVENTORY, validate.INVENTORY,
+                     validate.DIRECTORY, validate.INVENTORY]
+
+
 # ---- the verdict -----------------------------------------------------------
 
 def test_a_clean_report_passes(tmp_path, monkeypatch, capsys):
@@ -228,6 +299,21 @@ def test_plugin_directory_checks_never_gate(tmp_path, monkeypatch, capsys):
     _stub(monkeypatch, DIRECTORY_CHECKS)
     assert validate.run(_plugin(tmp_path, ACCEPT_ROOT)) == 0
     assert "3 plugin directory findings above, which never gate" in capsys.readouterr().out
+
+
+def test_inventory_never_gates_and_is_not_counted(tmp_path, monkeypatch, capsys):
+    """A list of what the plugin provides says nothing is wrong with it."""
+    _stub(monkeypatch, PROVIDES)
+    assert validate.run(_plugin(tmp_path, ACCEPT_ROOT)) == 0
+    out = capsys.readouterr().out
+    assert "passes plugin validation (1 accepted warning)." in out
+
+
+def test_a_note_on_how_the_checks_ran_never_gates(tmp_path, monkeypatch, capsys):
+    _stub(monkeypatch, ABOUT_THESE_CHECKS)
+    assert validate.run(_plugin(tmp_path)) == 0
+    assert ("1 plugin directory finding above, which never gates"
+            in capsys.readouterr().out)
 
 
 def test_advice_is_not_listed_with_the_warnings_that_fail(tmp_path, monkeypatch):

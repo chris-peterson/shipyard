@@ -37,6 +37,12 @@ counts it so it isn't lost in the log.
 directory refuses or flags in a submission (a missing icon, a README with no
 install line), printed in a section of their own that the validator says does
 not change the result. They're reported and counted the way advice is.
+
+**Inventory** never fails, and isn't a finding about the plugin at all. Since
+Claude Code 2.1.326 the validator lists what the plugin provides (`Provides:`,
+one line per skill or hook) and, inside the directory section, notes how it ran
+the checks (`About these checks:`, such as which repository root a README was
+taken from). Neither says anything is wrong, so neither gates or is counted.
 """
 from __future__ import annotations
 
@@ -66,10 +72,14 @@ PASS_MARK = "✔"     # ✔
 FINDING = "❯"       # ❯
 
 # Advice never changes the validator's exit code, even under `--strict`, so it
-# never gates here either. A finding under a header this grammar doesn't name is
-# UNREAD and fails the gate: whether it should gate depends on a kind only the
-# validator knows, and borrowing the previous block's would be a guess.
-ERROR, WARNING, ADVICE, DIRECTORY, UNREAD = "error", "warning", "advice", "directory", "unread"
+# never gates here either. Nor does inventory: a header in INVENTORY_HEADERS
+# lists what the plugin provides or how the checks ran, not a problem with it.
+# A finding under a header this grammar doesn't name is UNREAD and fails the
+# gate: whether it should gate depends on a kind only the validator knows, and
+# borrowing the previous block's would be a guess.
+ERROR, WARNING, ADVICE, DIRECTORY, INVENTORY, UNREAD = (
+    "error", "warning", "advice", "directory", "inventory", "unread")
+INVENTORY_HEADERS = ("Provides:", "About these checks:")
 
 # Every report ends in one of these. Requiring it is what separates "the
 # validator looked and found nothing" from "something else ran": a first-run
@@ -148,6 +158,8 @@ def _block_kind(header: str) -> str:
     if header.startswith(ADVICE_MARK) \
             and header[len(ADVICE_MARK):].lstrip().startswith("Advice"):
         return ADVICE
+    if header in INVENTORY_HEADERS:
+        return INVENTORY
     # `✘ Validation failed` shares its mark with an error header; it ends the
     # report rather than opening a block.
     return UNREAD
@@ -255,8 +267,9 @@ def run(root: str | pathlib.Path | None = None) -> int:
                  else "outside any block")
         problems.append(
             f"{finding.source}: {finding.field}: {finding.message}\n"
-            f"    This finding is {where}, which is not an error, warning, or "
-            f"advice block, so shipyard cannot tell whether it gates.")
+            f"    This finding is {where}, which is not an error, warning, "
+            f"advice, or inventory block, so shipyard cannot tell whether it "
+            f"gates.")
     for finding in findings:
         if finding.kind != WARNING:
             continue

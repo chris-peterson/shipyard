@@ -12,6 +12,15 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
 
 ## Unreleased
 
+### Fixed
+
+- **`validate` passes on Claude Code 2.1.326.** The validator now prints a
+  `Provides:` block listing a plugin's skills and hooks, and an `About these
+  checks:` note when it takes a README from the repository root. shipyard read
+  both as blocks it couldn't classify and failed every plugin with a skill or
+  hook. They're now read as inventory, which never gates. `actions/project`
+  pins the validator at 2.1.326.
+
 ### Changed
 
 - **`gen-events-json` fails when a plugin subscribes to a key nothing
