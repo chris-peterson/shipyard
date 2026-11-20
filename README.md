@@ -31,7 +31,9 @@ Hooks are declared in `hooks/hooks.yml` — the source of record, a flat, commen
 list of `{event, matcher?, command, description}` — which shipyard projects into the
 `hooks/hooks.json` Claude Code reads (same split as `plugin.yml` → `plugin.json`).
 `gen-describe` reads the descriptions straight from `hooks.yml`, so no
-`# DOCUMENTATION:` line in the hook scripts is needed.
+`# DOCUMENTATION:` line in the hook scripts is needed. A `modules:` list in the
+same file declares hooks modules (`./register.ts`), which reach `hooks.json` as
+its `modules` list.
 
 ## Aggregating a set of plugins
 

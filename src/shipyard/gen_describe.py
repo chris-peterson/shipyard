@@ -8,6 +8,8 @@ the marketplace shows is *computed*, never hand-written:
   rule     -> first `# ` heading of rules/<name>.md
   hook      -> the event(s) it's wired to in hooks/hooks.json, plus the script's
               `# DOCUMENTATION:` line; hooks.json itself -> the full event→target wiring
+  module    -> `module`, plus its `description:` in hooks/hooks.yml, keyed by the
+              module file's stem
 
 The block is written into plugin.yml between generated markers, so the rest of
 the (hand-authored) file is never reformatted. Downstream consumers — the
@@ -23,7 +25,7 @@ import re
 import yaml
 
 from ._common import plugin_root
-from .gen_hooks_json import load_hooks
+from .gen_hooks_json import load_hooks, load_modules
 
 BEGIN = "  # >>> shipyard:describe — generated from source by `shipyard gen-describe`; do not edit >>>"
 END = "  # <<< shipyard:describe <<<"
@@ -117,7 +119,22 @@ def _hooks_wiring(hooks_json: pathlib.Path) -> str:
                     targets[t].append(matcher)
         rendered = [f"{t} ({', '.join(ms)})" if ms else t for t, ms in targets.items()]
         parts.append(f"{event}→{', '.join(rendered)}")
+    # Modules register their own handlers, so they're wired to the key that
+    # loads them rather than to any one event.
+    if data.get("modules"):
+        parts.append("modules→" + ", ".join(
+            pathlib.PurePosixPath(m).stem for m in data["modules"]))
     return "Hook wiring: " + "; ".join(parts) + "."
+
+
+def _module_rows(hooks_yml: pathlib.Path) -> dict[str, str]:
+    """Each declared module, keyed by its file's stem, in the style of a hook
+    row: what it's wired to (`module`), then its description when it has one."""
+    out: dict[str, str] = {}
+    for m in load_modules(hooks_yml):
+        doc = _first_sentence(str(m["description"])) if m.get("description") else ""
+        out[pathlib.PurePosixPath(m["path"]).stem] = "module" + (f" — {doc}" if doc else "")
+    return out
 
 
 def derive(root: str | pathlib.Path | None = None) -> dict:
@@ -156,6 +173,9 @@ def derive(root: str | pathlib.Path | None = None) -> dict:
                     )
             prefix = " / ".join(events) + " — " if events else ""
             out.setdefault("hooks", {})[f.stem] = prefix + doc
+    if hooks_yml.exists():
+        for stem, row in _module_rows(hooks_yml).items():
+            out.setdefault("hooks", {})[stem] = row
     for f in sorted((r / "commands").glob("*.md")):
         if desc := _frontmatter_desc(f):
             out.setdefault("commands", {})[f.stem] = desc

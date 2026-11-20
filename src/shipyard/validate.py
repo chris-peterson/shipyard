@@ -43,10 +43,16 @@ Claude Code 2.1.326 the validator lists what the plugin provides (`Provides:`,
 one line per skill or hook) and, inside the directory section, notes how it ran
 the checks (`About these checks:`, such as which repository root a README was
 taken from). Neither says anything is wrong, so neither gates or is counted.
+A hooks module's report is inventory too: under `hooks/hooks.json`, with no
+header, one line per thing the validator read off the module (`./register.ts
+hooks: session.start`, `./register.ts calls: $.ui.toast`). What the module's own
+type check finds is reported under a section of its own, in an ordinary warning
+block, and gates like any other warning.
 """
 from __future__ import annotations
 
 import pathlib
+import re
 import shutil
 import subprocess
 
@@ -80,6 +86,9 @@ FINDING = "❯"       # ❯
 ERROR, WARNING, ADVICE, DIRECTORY, INVENTORY, UNREAD = (
     "error", "warning", "advice", "directory", "inventory", "unread")
 INVENTORY_HEADERS = ("Provides:", "About these checks:")
+# A headerless line naming a hooks module (`./register.ts hooks: …`) is that
+# module's report. The suffixes are gen_hooks_json.MODULE_SUFFIXES.
+MODULE_REPORT = re.compile(r"^\./\S+\.(?:ts|tsx|js|mjs) ")
 
 # Every report ends in one of these. Requiring it is what separates "the
 # validator looked and found nothing" from "something else ran": a first-run
@@ -135,7 +144,10 @@ def parse(output: str) -> list[Finding]:
         if line.startswith(FINDING):
             body = line[len(FINDING):].strip()
             field, _, message = body.partition(":")
-            findings.append(Finding(kind, field.strip(), message.strip(),
+            found = kind
+            if not header and MODULE_REPORT.match(field):
+                found = INVENTORY
+            findings.append(Finding(found, field.strip(), message.strip(),
                                     source, header))
             continue
         # A finding long enough to wrap continues on the next line, and so does

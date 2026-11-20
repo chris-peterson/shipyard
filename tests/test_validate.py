@@ -168,6 +168,31 @@ The directory also runs a safety scan and a policy review that this command does
 ✔ Validation passed
 """
 
+# A plugin with a hooks module, as Claude Code 2.1.329 reports it: the module's
+# report sits under hooks.json with no header, and its type check gets a
+# section of its own.
+MODULE_REPORT = """\
+Validating plugin manifest: /repo/.claude-plugin/plugin.json
+
+Validating hooks: /repo/hooks/hooks.json
+
+  ❯ ./switch.ts hooks: session.start, prompt.submit
+  ❯ ./switch.ts gating hook without .catch: prompt.submit
+  ❯ ./switch.ts calls: $.ui.toast
+
+Validating hooks: /repo/hooks/switch.ts
+
+⚠ Found 1 warning:
+
+  ❯ line 1, column 26: error TS7006: Parameter 'on' implicitly has an 'any' type.
+
+Provides:
+
+  ❯ modules: hooks/switch.ts
+
+✔ Validation passed with warnings
+"""
+
 ACCEPT_ROOT = """\
 name: demo
 validate:
@@ -270,6 +295,24 @@ def test_a_note_on_how_the_directory_checks_ran_is_inventory():
     kinds = [f.kind for f in validate.parse(ABOUT_THESE_CHECKS)]
     assert kinds == [validate.INVENTORY, validate.INVENTORY,
                      validate.DIRECTORY, validate.INVENTORY]
+
+
+def test_a_hooks_modules_report_is_inventory_and_its_type_check_a_warning():
+    found = [(f.field, f.kind, f.source) for f in validate.parse(MODULE_REPORT)]
+    assert found == [
+        ("./switch.ts hooks", validate.INVENTORY, "/repo/hooks/hooks.json"),
+        ("./switch.ts gating hook without .catch", validate.INVENTORY,
+         "/repo/hooks/hooks.json"),
+        ("./switch.ts calls", validate.INVENTORY, "/repo/hooks/hooks.json"),
+        ("line 1, column 26", validate.WARNING, "/repo/hooks/switch.ts"),
+        ("modules", validate.INVENTORY, "/repo/hooks/switch.ts"),
+    ]
+
+
+def test_a_headerless_line_that_names_no_module_is_still_unread():
+    other = MODULE_REPORT.replace("./switch.ts calls", "switch calls")
+    kinds = {f.field: f.kind for f in validate.parse(other)}
+    assert kinds["switch calls"] == validate.UNREAD
 
 
 # ---- the verdict -----------------------------------------------------------

@@ -36,6 +36,15 @@ Each generator reads a plugin's canonical source and writes a committed artifact
       description: Screens the command before it runs.
   ```
 
+  A plugin that ships [hooks modules](https://code.claude.com/docs/en/hooks), code Claude Code loads and that registers its own handlers, lists them under `modules:`. Each is a path relative to `hooks/`, starting `./` and ending `.ts`, `.tsx`, `.js`, or `.mjs`, written bare or as a mapping with a `description:`. They reach `hooks.json` as its `modules` list, after `hooks`, which is left out when a plugin declares only modules. `gen-describe` lists each one beside the hooks, keyed by its file's stem, and the wiring line ends `modules→<stem>`. `claude plugin validate` loads the module itself, so a path that names no file fails there.
+
+  ```yaml
+  modules:
+    - ./register.ts
+    - path: ./switch.ts
+      description: Switches the session's rigs from the prompt.
+  ```
+
 - **`gen-cli-manifest`** — for a plugin whose primary surface is a CLI. Its command and flag grammar is a public contract callers script against, and nothing recorded it: a renamed flag reached users as an unexplained behavior change, with no diff anywhere that named it. This generator runs the CLI, parses its help output, and writes a structured manifest the repo commits.
 
   It's the only generator whose source of record is a running program rather than a file, so the repo declares how to reach it:
@@ -102,7 +111,7 @@ Each generator reads a plugin's canonical source and writes a committed artifact
 
   Three things markdown has no way to say are inline HTML with a small style block that travels inside the generated page: the tag row, carrying the version — linked to the published release — and a `cli` mark for a plugin whose `suite.cli` says it ships a command you run in your own shell, the same mark the catalog card shows; a lede, since a blockquote renders as the theme's tip callout and files the summary as an aside; and a peer's mark in the *Works with* table. Every value in it resolves through the host theme's own tokens, so the page follows the site into light or dark instead of fixing its own palette. Membership in the suite belongs to the titlebar rather than the page — `projects.yml` already nests a plugin under the marketplace, and the breadcrumb states it once: `chris-peterson / bridge.ai / anchor`.
 
-  `hooks.yml` renders **`docs/hooks.md`** alongside it: a section per hook carrying the event, the matcher, the command, and the script itself, with the home page's hook rows linking into it. A hook is the one artifact with no page of its own, and answering "what does this one do" is a documentation question — so it resolves in the docs, on a page that shows what runs, rather than at a source file on the forge.
+  `hooks.yml` renders **`docs/hooks.md`** alongside it: a section per hook carrying the event, the matcher, the command, and the script itself, then a section per module carrying its source, with the home page's hook rows linking into it. A hook is the one artifact with no page of its own, and answering "what does this one do" is a documentation question — so it resolves in the docs, on a page that shows what runs, rather than at a source file on the forge.
 
   A **dependency** resolves to its docs on the hub by name, which is also what marks it as a peer: peers lead the table and carry their own mark, while a project documenting itself elsewhere declares a `url`, reads as outbound, and sorts to the bottom.
 

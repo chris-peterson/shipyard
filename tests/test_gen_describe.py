@@ -16,7 +16,7 @@ import textwrap
 import pytest
 import yaml
 
-from shipyard import gen_describe
+from shipyard import gen_describe, gen_hooks_json
 
 BLOCK = gen_describe.render_block({"skills": {"build": "Build the thing."}})
 
@@ -140,3 +140,30 @@ def test_every_spliced_result_still_parses():
     """The property the failure violated, asserted directly."""
     for text in (SUITE_LAST, SUITE_THEN_DOCS):
         assert yaml.safe_load(_splice(text))
+
+
+def test_a_module_is_described_beside_the_hooks_and_in_the_wiring(tmp_path):
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "hooks.yml").write_text(textwrap.dedent("""\
+        hooks:
+          - event: SessionStart
+            command: bash "${CLAUDE_PLUGIN_ROOT}/hooks/greet.sh"
+            description: Greets. At length.
+        modules:
+          - ./register.ts
+          - path: ./switch.ts
+            description: Switches rigs from the prompt. Mid-session.
+        """))
+    (hooks / "greet.sh").write_text("#!/usr/bin/env bash\n")
+    (hooks / "switch.ts").write_text("export function register() {}\n")
+    (hooks / "hooks.json").write_text(gen_hooks_json.build(tmp_path))
+
+    described = gen_describe.derive(tmp_path)["hooks"]
+
+    assert described == {
+        "hooks": "Hook wiring: SessionStart→greet; modules→register, switch.",
+        "greet": "SessionStart — Greets.",
+        "register": "module",
+        "switch": "module — Switches rigs from the prompt.",
+    }

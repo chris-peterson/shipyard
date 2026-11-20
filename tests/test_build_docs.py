@@ -367,6 +367,40 @@ def test_the_hooks_page_carries_the_wiring_and_the_script(tmp_path):
     assert "echo hi" in page
 
 
+def test_a_module_gets_a_section_with_its_source_and_a_linked_row(tmp_path):
+    root = _home_plugin_root(tmp_path, HOME_YML.replace(
+        "      greet: SessionStart — greets.\n",
+        "      greet: SessionStart — greets.\n"
+        "      switch: module — switches rigs.\n"))
+    (root / "hooks" / "hooks.yml").write_text(HOOKS_YML + """\
+modules:
+  - path: ./switch.ts
+    description: switches rigs.
+""")
+    (root / "hooks" / "switch.ts").write_text("export function register() {}\n")
+
+    build_docs.run(root)
+
+    page = (root / "docs" / "hooks.md").read_text()
+    assert "## switch\n\nswitches rigs." in page
+    assert "| `./switch.ts` |" in page
+    assert "```typescript\nexport function register() {}\n```" in page
+    assert "Each module below is code Claude Code loads" in page
+    home = (root / "docs" / "_home.md").read_text()
+    assert "| [`switch`](/hooks?id=switch) | module — switches rigs. |" in home
+
+
+def test_a_modules_only_plugin_still_gets_a_hooks_page(tmp_path):
+    root = _home_plugin_root(tmp_path)
+    (root / "hooks" / "hooks.yml").write_text("modules:\n  - ./switch.ts\n")
+
+    build_docs.run(root)
+
+    page = (root / "docs" / "hooks.md").read_text()
+    assert "## switch" in page
+    assert "wired to a Claude Code event" not in page
+
+
 def test_a_plugin_with_no_hooks_renders_no_hooks_page(tmp_path):
     (tmp_path / "plugin.yml").write_text("name: demo\nsuite: {gloss: g}\n")
     (tmp_path / "docs").mkdir()

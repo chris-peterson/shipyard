@@ -12,6 +12,25 @@ are live while the projection shape is piloted: `v1` is the workflow-only shape,
 
 ## Unreleased
 
+### Added
+
+- **`hooks.yml` declares hooks modules.** A plugin that ships code Claude Code
+  loads as a hooks module lists it under a top-level `modules:`, as a path
+  relative to `hooks/` (`./register.ts`) or a mapping with `path:` and
+  `description:`. `gen-hooks-json` writes them to `hooks.json`'s `modules`
+  list, after `hooks`, and leaves `hooks` out when only modules are declared.
+  A `hooks.yml` with no `modules:` projects exactly as before. A path that
+  doesn't start with `./`, a file type Claude Code doesn't load, or an unknown
+  field fails the projection, naming the entry. `gen-describe` lists each
+  module beside the hooks, keyed by its file's stem, and adds it to the
+  wiring line; `build-docs` gives it a section on the hooks page with its
+  source.
+- **`validate` reads a hooks module's report.** The validator prints what it
+  read off each module (the events it hooks, the `$` calls it makes) under
+  `hooks.json` with no header. shipyard failed those lines as unreadable; they
+  are now inventory, which never gates. The module's own type check still
+  gates like any other warning.
+
 ### Fixed
 
 - **`validate` passes on Claude Code 2.1.326.** The validator now prints a

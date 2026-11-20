@@ -25,6 +25,17 @@ never applied.
 
 Entries are grouped into hooks.json by (event, matcher), preserving order, so
 `command` is stored verbatim and the JSON round-trips byte-for-byte.
+
+A plugin can also ship hooks *modules*: code Claude Code loads, which registers
+its own handlers rather than being wired to one event here. `modules:` lists
+them, each a path relative to hooks/ (`./switch.ts`) or a mapping carrying that
+`path` and a `description` for gen-describe and build-docs. They reach
+hooks.json as its `modules` list, after `hooks`, which is left out when only
+modules are declared:
+
+    modules:
+      - path: ./switch.ts
+        description: Switches the session's rigs from the prompt.
 """
 from __future__ import annotations
 
@@ -34,7 +45,7 @@ import pathlib
 from . import _validate
 from ._common import load_mapping, plugin_root
 
-HOOKS_SHAPE = "a mapping with a `hooks:` list"
+HOOKS_SHAPE = "a mapping with a `hooks:` list and/or a `modules:` list"
 
 # `description` is shipyard's own, read by gen-describe and build-docs; `event`
 # and `matcher` place the hook in hooks.json rather than ride on it.
@@ -47,22 +58,37 @@ REQUIRED = ("event", "command")
 HOOK_FIELDS = ("args", "async", "asyncRewake", "if", "onFailure", "shell",
                "statusMessage", "timeout")
 
+# A module entry's fields. Only `path` reaches hooks.json; `description` is
+# shipyard's own, as it is on a hook entry.
+MODULE_FIELDS = ("path", "description")
+# What a hooks module is written in. Claude Code resolves the path against
+# hooks/, and `claude plugin validate` loads the file and fails one it can't find.
+MODULE_SUFFIXES = (".ts", ".tsx", ".js", ".mjs")
+
 
 def hooks_yml_path(root: str | pathlib.Path | None = None) -> pathlib.Path:
     return plugin_root(root) / "hooks" / "hooks.yml"
 
 
-def load_hooks(path: pathlib.Path) -> list:
-    """The declared hook entries. The one reader of hooks.yml — build-docs and
-    gen-describe come through here too, so a shape it rejects is rejected for
-    every projection rather than by whichever one ran first."""
-    entries = load_mapping(path, HOOKS_SHAPE).get("hooks")
+def _load(path: pathlib.Path) -> tuple[list, list]:
+    """The declared hook entries and modules, each module as a mapping with a
+    `path`. Every projection reads hooks.yml through here, so a shape it rejects
+    is rejected for every projection rather than by whichever one ran first."""
+    source = load_mapping(path, HOOKS_SHAPE)
+    entries = source.get("hooks")
     if entries is None:
-        return []
+        entries = []
     if not isinstance(entries, list):
         raise SystemExit(
             f"shipyard: {path} `hooks:` must be a list of entries, but it is "
             f"a {type(entries).__name__}")
+    modules = source.get("modules")
+    if modules is None:
+        modules = []
+    if not isinstance(modules, list):
+        raise SystemExit(
+            f"shipyard: {path} `modules:` must be a list of module paths, but "
+            f"it is a {type(modules).__name__}")
     errors: list[str] = []
     for i, entry in enumerate(entries):
         if not isinstance(entry, dict):
@@ -78,12 +104,62 @@ def load_hooks(path: pathlib.Path) -> list:
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"{at}/{field} is required and must be a "
                               f"non-empty string")
+    declared, more = _modules(modules)
+    errors += more
     _validate.raise_if(errors, f"{path} declares hooks shipyard cannot project:")
-    return entries
+    return entries, declared
+
+
+def _modules(modules: list) -> tuple[list[dict], list[str]]:
+    declared: list[dict] = []
+    errors: list[str] = []
+    for i, module in enumerate(modules):
+        at = f"/modules/{i}"
+        where = f"{at}/path"
+        if isinstance(module, str):
+            module, where = {"path": module}, at
+        elif not isinstance(module, dict):
+            errors.append(f"{at} must be a path such as ./register.ts, or a "
+                          f"mapping with path: and description:")
+            continue
+        for field in sorted(set(module) - set(MODULE_FIELDS)):
+            errors.append(f"{at}/{field} is not a module field "
+                          f"({', '.join(MODULE_FIELDS)})")
+        value = module.get("path")
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"{where} is required and must be a non-empty string")
+            continue
+        if not value.startswith("./"):
+            errors.append(f"{where} must be relative to hooks/ and start with "
+                          f"./, but it is {value!r}")
+        elif not value.endswith(MODULE_SUFFIXES):
+            errors.append(f"{where} must name a "
+                          f"{', '.join(MODULE_SUFFIXES[:-1])}, or "
+                          f"{MODULE_SUFFIXES[-1]} module, but it is {value!r}")
+        if "description" in module and (
+                not isinstance(module["description"], str)
+                or not module["description"].strip()):
+            errors.append(f"{at}/description must be a non-empty string")
+        declared.append(module)
+    paths = [m["path"] for m in declared]
+    for value in sorted({p for p in paths if paths.count(p) > 1}):
+        errors.append(f"/modules lists {value} more than once")
+    return declared, errors
+
+
+def load_hooks(path: pathlib.Path) -> list:
+    """The declared hook entries."""
+    return _load(path)[0]
+
+
+def load_modules(path: pathlib.Path) -> list[dict]:
+    """The declared hooks modules, each a mapping with `path` and, when the
+    entry gave one, `description`."""
+    return _load(path)[1]
 
 
 def build(root: str | pathlib.Path | None = None) -> str:
-    entries = load_hooks(hooks_yml_path(root))
+    entries, modules = _load(hooks_yml_path(root))
     events: dict[str, list] = {}  # event -> [ [matcher, [hook, ...]], ... ]
     for e in entries:
         event, matcher = e["event"], e.get("matcher")
@@ -106,7 +182,12 @@ def build(root: str | pathlib.Path | None = None) -> str:
             group["hooks"] = hooks
             arr.append(group)
         out[event] = arr
-    return json.dumps({"hooks": out}, indent=2) + "\n"
+    # A modules-only hooks.json carries no `hooks` key, the shape Claude Code's
+    # own module plugins ship. A hooks.yml declaring nothing keeps its `{}`.
+    projected: dict = {"hooks": out} if out or not modules else {}
+    if modules:
+        projected["modules"] = [m["path"] for m in modules]
+    return json.dumps(projected, indent=2) + "\n"
 
 
 def run(root: str | pathlib.Path | None = None) -> int:
